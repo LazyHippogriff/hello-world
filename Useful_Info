@@ -1,0 +1,710 @@
+Linux Commands
+
+To find the resources consumed by each thread of a pid
+top -p PID -H
+
+
+To find port forwarding in linux gateway
+
+Ps –ef | grep fnNl(or just fn)
+
+To find info about cpu (lscpu)
+To find bits of OS(getconf LONG_BIT or uname -a)
+
+To monitor system metrics
+dstat -lrvn 10
+
+finding number of java applications running on linux
+ps -ef | grep "[j]ava" | wc –l
+
+
+finding pid of running java applications
+ps aux | grep java
+
+finding info from pid
+ps -p 3339 -o comm=
+
+To create a user account from a shell prompt:
+1.	Open a shell prompt.
+2.	If you are not logged in as root, type the command su - and enter the root password.
+3.	Type useradd followed by a space and the username for the new account you are creating at the command line (for example, useradd jsmith). Press [Enter]. Often, usernames are variations on the user's name, such as jsmith for John Smith. User account names can be anything from the user's name, initials, or birthplace to something more creative.
+4.	Type passwd followed by a space and the username again (for example, passwd jsmith).
+5.	At the New password: prompt enter a password for the new user and press [Enter].
+6.	At the Retype new password: prompt, enter the same password to confirm your selection.
+
+
+Route –n command will tell about the default gateway of the subnet.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+http://cassandra.apache.org/doc/latest/operating/index.html
+
+Datastax’s C++ driver mailing list
+https://groups.google.com/a/lists.datastax.com/forum/#!newtopic/cpp-driver-user
+
+To Increase CQL timeout
+Edit cqlsh.py file in bin folder. Modify the DEFAULT_REQUEST_TIMEOUT_SECONDS.
+
+
+Installing Cassandra
+(open ports 7000 and 9160)
+1.	Install latest stable JDK package from oracle website.(to check java version type “java –version”
+Install the jdk rpm package by using below given command.
+rpm -ivh jdk-8u45-linux-x64.rpm
+
+2.	Download and extract apache-cassandra tar.gz file in a directory of your choice(download from “http://www-eu.apache.org/dist/cassandra/” or “http://cassandra.apache.org/download/”.
+(to extract) tar -zxvf apache-cassandra-3.9-bin.tar.gz
+3.	Next is to create necessary directories (for cassandra to store data)  and assign permissions on those directories.
+mkdir /var/lib/cassandra/data
+mkdir /var/log/cassandra
+mkdir /var/lib/cassandra/commitlog
+chown -R cassandra:cassandra /var/lib/cassandra/data
+chown -R cassandra:cassandra /var/log/cassandra/
+chown -R cassandra:cassandra /var/lib/cassandra/commitlog
+
+
+Installing C++ driver
+1.	Install rpm “libuv-1.13.1-1.el6.x86_64.rpm” by rpm –ivh libuv-1.13.1-1.el6.x86_64.rpm
+2.	Install rpm –ivh libuv-devel-1.13.1-1.el6.x86_64.rpm
+3.	Install rpm –ivh cassandra-cpp-driver-2.7.0-1.el6.x86_64.rpm
+4.	Install rpm –ivh cassandra-cpp-driver-devel-2.7.0-1.el6.x86_64.rpm
+The libraries will be installed at /usr/lib64 and the header file at /usr/include
+
+
+
+
+
+
+To synchronize time between different servers
+Vi /etc/ntp.conf
+Add the following line
+Server ip iburst
+Replace ip in above command with the ip address of the server with which you want to sync time.
+And then use following command
+/etc/init.d/ntpd restart
+
+https://www.rootusers.com/how-to-synchronize-time-in-linux-with-ntp-peers/
+Taking backup of a node
+
+To fully restore data, you must have a complete backup, which consists of the following:
+
+• A snapshot at a point in time
+• All incremental backups from the time you took the snapshot
+• All commitlog segments since the time you took the last incremental
+backup
+
+Cassandra can only restore data from a snapshot when the table schema exists. If the schema does not exist and has not been backed up, you must recreate the schema.
+First take backup of schema via 
+./cqlsh 172.16.128.130 -e "DESC SCHEMA" > db_schema.cql
+
+To recreate the schema, 
+./cqlsh 172.16.128.130 -e "SOURCE '/home/cass/share/cassandra/data/hss_1/subscriber_master_table-abd04bf00c9711e8b214c75879db7963/snapshots/1518439698119/schema.cql'"
+1.The nodetool clearsnapshot command removes all existing snapshot files from the snapshot directory of each keyspace. You should make it part of your back-up process to clear old snapshots before taking a new one.
+./nodetool clearsnapshot
+
+2. To take snapshot of all the keyspaces on a node:
+./nodetool snapshot
+The snapshot is created in data_directory/keyspace_name/table_name-UUID/snapshots/snapshot_name directory.
+
+3. To use the snapshot, copy all the snapshot files into the data/keyspace/table-uuid folder
+e.g. cp snapshots/1303701623423/* /home/cass/share/cassandra/data/hss_1/subscriber_master_table-abd04bf00c9711e8b214c75879db7963/
+(here hss_1 is the keyspace and subscriber_master_table is the table name)
+
+4. If incremental_backups was set as true in yaml, copy all the files in the data/keyspace/table-uuid/backup/ folder into data/keyspace/table-uuid/.
+
+5. Run the nodetool refresh command, specifying the keyspace and table name.
+./nodetool refresh hss_1 subscriber_master_table
+
+6. Run nodetool repair at the end on all replicas.
+The snapshots and incremental backup files are not automatically deleted, therefore you’ll have to manually delete the older backup files.
+
+To restore a node from a snapshot and incremental backups:
+1.	Shut down the node to be restored.
+2.	Clear all files the /var/lib/cassandra/commitlog (by default).
+3.	Clear all *.db files in <data_directory_location>/<keyspace_name>, but DO NOT delete the /snapshots and /backupssubdirectories.
+4.	Locate the most recent snapshot folder in <data_directory_location>/<keyspace_name>/snapshots/<snapshot_name>, and copy its contents into <data_directory_location>/<keyspace_name>.
+5.	If using incremental backups as well, copy all contents of <data_directory_location>/<keyspace_name>/backups into <data_directory_location>/<keyspace_name>.
+6.	Restart the node, keeping in mind that a temporary burst of I/O activity will consume a large amount of CPU resources.
+
+
+Restoring a snapshot into a new cluster
+(When we have to recover data from a snapshot from some other cluster into some new cluster)
+
+First we have to setup the new cluster with exact same settings as were there in the older cluster. Also we’ll have to use the same tokens for each of the nodes.
+1.	In the yaml file, uncomment the ‘initial_token’ and specify the tokens you want the node to use. Also make sure all other configurations are same as before.
+2.	Delete all the data from data/system folder i.e. rm –rf *
+3.	Start the node.
+4.	All the schemas from the old cluster must be reproduced in the new cluster.
+5.	Stop the node.
+6.	Copy all the files from the snapshot directory into the relevant table’s directory in the new cluster.
+7.	Restart the node.
+
+Adding a new node
+
+Edit the topology files of all nodes. Start the new node and then run nodetool repair on all nodes after the new node has been added. Lastly, run nodetool cleanup.
+https://stackoverflow.com/questions/24559907/cassandra-avoid-nodetool-cleanup
+
+Replacing a dead node
+In order to replace a dead node, start cassandra with the JVM startup flag -Dcassandra.replace_address_first_boot=<dead_node_ip>. Once this property is enabled the node starts in a hibernate state, during which all the other nodes will see this node to be down.
+The replacing node will now start to bootstrap the data from the rest of the nodes in the cluster. The main difference between normal bootstrapping of a new node is that this new node will not accept any writes during this phase.
+Once the bootstrapping is complete the node will be marked “UP”, we rely on the hinted handoff’s for making this node consistent (since we don’t accept writes since the start of the bootstrap).
+Note
+If the replacement process takes longer than max_hint_window_in_ms you MUST run repair to make the replaced node consistent again, since it missed ongoing writes during bootstrapping.
+
+
+
+Insufficient user resource limit errors
+https://docs.datastax.com/en/archived/cassandra/2.0/cassandra/troubleshooting/trblshootInsufficientResources_r.html
+check current values by “ulimit –a”
+change values(if any):
+vim /etc/security/limits.conf
+
+cass soft nofile 32768
+cass hard nofile 32768
+cass soft memlock unlimited
+cass hard memlock unlimited
+cass soft as unlimited
+cass hard as unlimited
+
+
+
+
+
+Decommissioning a node
+Decommissioning a node will copy it’s data to other nodes. Use “./nodetool decommission”.
+
+Changing rack/dc of a node
+
+stop the node, change the rack/dc in the relevant configuration files and then restart the node with the flags: -Dcassandra.ignore_dc=true -Dcassandra.ignore_rack=true
+
+Copying data from CQL
+
+copy tablename to 'filepath.txt'
+copy tablename from 'filepath.txt' with header=false 
+
+							
+							
+Copying Partial data from one table to another
+
+COPY keyspace.columnfamily1 (column1, column2,...) TO 'temp.csv';
+COPY keyspace.columnfamily2 (column1, column2,...) FROM 'temp.csv';
+
+https://stackoverflow.com/questions/21363046/how-to-select-data-from-a-table-and-insert-into-another-table#21378330
+
+Using nodetool from remote server
+
+On the Cassandra node, in the Cassandra-env.sh file, uncomment the following line:
+JVM_OPTS="$JVM_OPTS -Djava.rmi.server.hostname=172.16.129.67"
+
+“if [ "x$LOCAL_JMX" = "x" ]; then
+    LOCAL_JMX=no
+Fi”
+
+if [ "$LOCAL_JMX" = "yes" ]; then
+  JVM_OPTS="$JVM_OPTS -Dcassandra.jmx.local.port=$JMX_PORT -XX:+DisableExplicitGC"
+else
+  JVM_OPTS="$JVM_OPTS -Dcom.sun.management.jmxremote.port=$JMX_PORT"
+  JVM_OPTS="$JVM_OPTS -Dcom.sun.management.jmxremote.rmi.port=$JMX_PORT"
+  JVM_OPTS="$JVM_OPTS -Dcom.sun.management.jmxremote.ssl=false"
+  JVM_OPTS="$JVM_OPTS -Dcom.sun.management.jmxremote.authenticate=false"
+  JVM_OPTS="$JVM_OPTS -Dcom.sun.management.jmxremote.password.file=/etc/cassandra/jmxremote.password"
+
+On the remote server, use nodetool like following:
+./nodetool –p 7199 –h 172.16.129.67 status
+
+Set password on JMX port
+
+1.	Edit below lines in Cassandra-env.sh file:
+JVM_OPTS="$JVM_OPTS -Dcom.sun.management.jmxremote.authenticate=true"
+JVM_OPTS="$JVM_OPTS -Dcom.sun.management.jmxremote.password.file=path to jmxremote.password file"
+
+2.	Copy the jmxremote.password.template from /<jre_install_dir>/lib/management/ to path given above and rename to jmxremote.password
+3.	Change ownership to cassandra and permission.
+4.	Edit jmxremote.password and add the user and password:
+cassandra_test test_pwd
+To find out the jre version being used by Cassandra first find out the PID of Cassandra and then
+sudo lsof -p 27039 | grep jre
+
+5.	Add cassandra_test with readwrite permission to /<jre_install_dir>/lib/management/jmxremote.access:
+monitorRole readonly
+Cassandra_test readwrite
+controlRole readwrite \
+create javax.management.monitor.*,javax.management.timer.* \
+unregister
+6. Restart Cassandra
+7. Run nodetool with user and password:
+nodetool -u Cassandra_test -pw test_pwd status
+
+
+UDT
+CREATE TYPE test.address (
+    street text,
+    city text,
+    zip int,
+    phone set<frozen<phone_numbers>>
+);
+
+CREATE TYPE test.phone_numbers (
+    phone1 int,
+    phone2 int
+);
+To use UDT in Table
+CREATE TABLE test.udt (
+    id timeuuid PRIMARY KEY,
+    address frozen<address>,
+    name text
+)
+
+To insert in table having UDT
+
+insert into udt (id, address , name ) values(now(),{street:'niti1',city:'ghaziabad',zip:101021,phone:{{phone1:9818,phone2:4340}}},'random');
+
+To update UDT in table
+
+update udt set address ={street: 'niti1', city: 'ghaziabad', zip: 101021, phone: {{phone1: 949948, phone2: 4340}}} where id = 8d023440-ccce-11e6-ae6c-dfc3f02cf2fb;
+Generating UUID/timeuuid
+insert into stuff (uid, name) values(now(), 'my name');
+
+
+Enabling G1GC 
+https://medium.com/@mlowicki/move-cassandra-2-1-to-g1-garbage-collector-b9fb27365509
+https://tobert.github.io/pages/als-cassandra-21-tuning-guide.html
+
+
+Running Cassandra as service
+Steps needed to run Cassandra as service. PFA Cassandra script file in the end.
+configure sudo access to cass user 
+1. vim visudo
+2. ## Allows people in group wheel to run all commands
+                %cass        ALL=(ALL)       ALL
+3. sudo whoami (check if sudo access is given)
+
+edit cassandra script and add to /etc/init.d/
+1. configure CASS_HOME , CASS_BIN , CASS_LOG , CASS_USER , CASS_PID          in cassandra
+2. chmod +x cassandra
+3. sudo cp cassandra /etc/init.d/ 
+4. chkconfig –-add cassandra
+5. chkconfig cassandra on
+6. sudu service cassandra status/start/stop
+
+#!/bin/bash
+# init script for Cassandra.
+# chkconfig: 2345 90 10
+# description: Cassandra
+# script slightly modified from 
+# http://blog.milford.io/2010/06/installing-apache-cassandra-on-centos/
+
+. /etc/rc.d/init.d/functions
+
+CASS_HOME=/cassandra/apache-cassandra-1.2.4
+CASS_BIN=$CASS_HOME/bin/cassandra
+CASS_LOG=$CASS_HOME/../log/system.log
+CASS_USER="root"
+CASS_PID=/var/run/cassandra.pid
+
+if [ ! -f $CASS_BIN ]; then
+  echo "File not found: $CASS_BIN"
+  exit 1
+fi
+
+RETVAL=0
+
+start() {
+  if [ -f $CASS_PID ] && checkpid `cat $CASS_PID`; then
+    echo "Cassandra is already running."
+    exit 0
+  fi
+  echo -n $"Starting $prog: "
+  daemon --user $CASS_USER $CASS_BIN -p $CASS_PID >> $CASS_LOG 2>&1
+  usleep 500000
+  RETVAL=$?
+  if [ "$RETVAL" = "0" ]; then
+    echo_success
+  else
+    echo_failure
+  fi
+  echo
+  return $RETVAL
+}
+
+stop() {
+  # check if the process is already stopped by seeing if the pid file exists.
+  if [ ! -f $CASS_PID ]; then
+    echo "Cassandra is already stopped."
+    exit 0
+  fi
+  echo -n $"Stopping $prog: "
+  if kill `cat $CASS_PID`; then
+    RETVAL=0
+    echo_success
+ else
+    RETVAL=1
+    echo_failure
+  fi
+  echo
+  [ $RETVAL = 0 ]
+}
+
+status_fn() {
+  if [ -f $CASS_PID ] && checkpid `cat $CASS_PID`; then
+    echo "Cassandra is running."
+    exit 0
+  else
+   echo "Cassandra is stopped."
+    exit 1
+  fi
+}
+
+case "$1" in
+  start)
+    start
+    ;;
+  stop)
+    stop
+    ;;
+  status)
+    status_fn
+    ;;
+  restart)
+    stop
+  usleep 500000
+    start
+    ;;
+  *)
+    echo $"Usage: $prog {start|stop|restart|status}"
+    RETVAL=3
+esac
+
+exit $RETVAL
+
+
+Enabling JNA
+Vim /etc/security/limits.conf 
+
+cass soft nofile 32768
+cass hard nofile 32768
+cass soft memlock unlimited
+cass hard memlock unlimited
+cass soft nproc 32768
+cass hard nproc 32768
+cass hard as unlimited
+cass soft as unlimited 
+
+reboot
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Linux Procedures
+
+To check whether the shell is login-shell or not
+
+Echo $0
+If bash then it’s a non login shell if –bash then it’s a login shell
+
+The importance of using a login shell is the any settings in `/home/user/.bash_profile` will get executed. Here is a little more information if you are interested (from `man bash`)
+
+When bash is invoked as an interactive login shell, or as a non-interactive shell with the --login option, it first reads and
+executes commands from the file /etc/profile, if that file exists. After reading that file, it looks for ~/.bash_profile,
+~/.bash_login, and ~/.profile, in that order, and reads and executes commands from the first one that exists and is readable.
+The --noprofile option may be used when the shell is started to inhibit this behavior.
+
+
+https://www.linuxquestions.org/questions/programming-9/how-to-check-in-a-script-whether-the-shell-is-login-or-non-login-360629/
+
+Determining time difference between 2 servers
+
+
+ntpdate -q host2
+
+offset will give the time difference
+https://superuser.com/questions/408753/determine-the-time-difference-between-two-linux-servers
+
+
+To check the number of hard disks in the system
+
+ls /dev/sd(tab)
+the number of names without number is the count of the disks.
+The name with numbers are the partitions.
+
+To check which process is using a particular port
+netstat -tulpn | grep 9042
+
+To check communication between ports is possible
+
+nc ip port_no //on server (ip is server ip)
+nc –v -w2 ip port_no //on client(ip is server ip)
+
+
+T
+To open port
+
+Iptables –I input –p tcp –m tcp –dport port_no –j ACCEPT
+
+To check latency of tcp port
+
+time nc –zw30 <host> <port>
+
+to monitor tcp traffic on a port
+
+tcpdump –A –i eth0 port 7000
+
+Edit bashrc
+Vim ~/.bashrc
+*do changes*
+:wq
+Source ~/.bashrc
+
+
+To  ssh into remote server without password
+https://www.ssh.com/ssh/copy-id
+
+
+find out about cpu info
+lscpu and lscpu –e 
+
+
+To find default gateway
+
+Route –n
+Look for the gateway having UG flag
+
+
+Configuring multiple IP address to a single interface:
+
+
+
+First find out which IP addresses are being used in your network..
+
+nmap -sn -n 172.16.128.0/25
+use the above command as root
+
+if you don’t have root permission, check whether a given ip address is being used in your local network by doing following steps:
+
+ping -c 1 -W 1 IP_Address
+arp -a -n|grep -w IP_Address
+
+https://serverfault.com/questions/912433/finding-unused-ip-addresses-on-my-network-in-linux/912454#912454
+
+After that configure multiple virtual interfaces binded to the same physical interface
+# cd /etc/sysconfig/network-scripts/
+# cp ifcfg-eth0 ifcfg-eth0:0
+# cp ifcfg-eth0 ifcfg-eth0:1
+# cp ifcfg-eth0 ifcfg-eth0:2
+ifcfg-eth0:0
+DEVICE="eth0:0"
+BOOTPROTO=static
+ONBOOT=yes
+TYPE="Ethernet"
+IPADDR=172.16.16.126
+NETMASK=255.255.255.224
+GATEWAY=172.16.16.100
+HWADDR=00:0C:29:28:FD:4C
+
+Once, you’ve made all changes, save all your changes and restart/start the network service for the changes to reflect.
+[root@tecmint network-scripts]# /etc/init.d/network restart
+https://www.tecmint.com/create-multiple-ip-addresses-to-one-single-network-interface/
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Cassandra Info
+
+
+PORTS in Cassandra
+
+https://docs.datastax.com/en/cassandra/2.1/cassandra/security/secureFireWall_r.html
+
+There are three primary ports of interest to Cassandra: 7000 (or 7001 if SSL/TLS is enabled), 7199, and 9160. Port 7000/7001 is used by Cassandra for cluster communication. This includes things such as the Gossip protocol and failure detection. Port 7199 is used by JMX. Port 9160 is the Thrift port and is used for client communication. In order for your cluster to function properly, all of these ports should be accessible.
+
+Latest
+
+http://cassandra.apache.org/doc/latest/faq/index.html#what-ports
+
+By default, Cassandra uses 7000 for cluster communication (7001 if SSL is enabled), 9042 for native protocol clients, and 7199 for JMX. The internode communication and native protocol ports are configurable in the Cassandra Configuration File. The JMX port is configurable in cassandra-env.sh (through JVM options). All ports are TCP.
+
+To check if a given port of a given IP is open for external communication
+nc –vn IP Port_No
+
+Copy command in CQL
+
+https://www.datastax.com/dev/blog/new-features-in-cqlsh-copy
+
+https://stackoverflow.com/a/41465577/5701173
+
+
+Cassandra Internals
+https://wiki.apache.org/cassandra/ArchitectureInternals
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Ignite
+
+Installing autoconf
+
+wget http://ftp.gnu.org/gnu/autoconf/autoconf-2.69.tar.gz
+$ tar xvfvz autoconf-2.69.tar.gz
+$ cd autoconf-2.69
+$ ./configure
+$ make
+$ sudo make install
+
+After installation, verify autoconf version:
+$ autoconf --version
+
+
+Ignite C++
+https://apacheignite-cpp.readme.io/docs/getting-started-1
+
+
+https://cwiki.apache.org/confluence/display/IGNITE/Ignite+Durable+Memory+-+under+the+hood
+
+
+Installing Ignite on 172.16.129.140
+
+Copy  Ignite folder from 172.16.129.67 to 172.16.129.140
+Copy *ignite* files from 172.16.129.67:/usr/local/lib to root@172.16.129.140: /usr/local/lib/
+Copy the following lines in vim /home/ignite/.bashrc of 172.16.129.140
+
+export LD_LIBRARY_PATH=/usr/local/lib:/usr/java/jdk1.8.0_111/jre/lib/amd64/server
+export JAVA_HOME=/usr/java/jdk1.8.0_111
+export IGNITE_HOME=/home/ignite/apache-ignite-fabric-2.4.0-bin
+
+source ~/.bashrc
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Installing Python in RHEL
+
+Download Python
+Enter the following commands to download and extract Python 2.7 to your hosting account.
+        mkdir ~/python
+        
+        cd ~/python
+        
+        wget http://www.python.org/ftp/python/2.7.2/Python-2.7.2.tgz
+        
+        tar zxfv Python-2.7.2.tgz
+        
+        find ~/python -type d | xargs chmod 0755
+        
+        cd Python-2.7.2
+        
+Install Python
+Once extracted you can use the following commands to configure and install Python.
+        ./configure --prefix=$HOME/python
+        
+        make
+        
+        make install
+        
+Modify the .bashrc
+For your local version of python to load you will need to add it to the .bashrc file.
+        vim ~/.bashrc
+        
+Press i 
+
+Enter:
+        export PATH=$HOME/python/Python-2.7.2/:$PATH
+        
+Write the changes (press ESC) and close vim:
+        :wq
+        
+Press Enter
+        source ~/.bashrc
+
+
+
+
+
+
+
+
+
+
+
