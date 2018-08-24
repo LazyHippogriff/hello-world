@@ -702,6 +702,164 @@ Press Enter
 
 
 
+ 
+
+systemd is the first daemon to start during booting and the last daemon to terminate during shutdown.
+
+Unit files[edit]
+systemd records initialization instructions for each daemon in a configuration file (referred to as a "unit file") that uses a declarative language, replacing the traditionally used per-daemon startup shell scripts. There are different types of unit files e.g. service units, target units, socket units, timer units (replacement for cron) etc. 
+•	service
+•	socket
+•	device
+•	mount
+•	automount
+•	swap
+•	target
+•	path
+•	timer (which can be used as a cron-like job scheduler[16])
+•	snapshot
+•	slice (used to group and manage processes and resources[17])
+•	scope
+
+Unit file paths
+1. /lib/systemd/system
+For package-installed units
+
+2. /etc/systemd/system
+For administrator configured units
+
+3. /run/systemd/system
+For non persistent run time modifications
+
+Unit files follow the naming convention:
+name.type
+e.g. ABC.service, SSH.socket etc
+
+
+Each unit file has got 2 sections called [Unit] (contains description and dependencies) and [Install]
+
+Service unit has got one extra section called [Service]
+•	[Unit] — contains generic options that are not dependent on the type of the unit. These options provide unit description, specify the unit's behavior, and set dependencies to other units.
+•	[unit type] — if a unit has type-specific directives, these are grouped under a section named after the unit type. 
+•	[Install] — contains information about unit installation used by systemctl enable and disable commands.
+
+Service units:
+A unit configuration file whose name ends in .service encodes
+information about a process controlled and supervised by systemd.
+— systemd.service(5)
+Systemd service units are the units that actually execute and keep track of programs and daemons, and dependencies are used to make sure that services are started in the right order. They are the most commonly used type of units.
+Reference: https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/7/html/system_administrators_guide/sect-managing_services_with_systemd-unit_files
+
+Target units:
+A unit configuration file whose name ends in ".target" encodes
+information about a target unit of systemd, which is used for grouping
+units and as well-known synchronization points during start-up.
+— systemd.target(5)
+Targets are used for grouping and ordering units. They are somewhat of a rough equivalent to runlevels in that at different targets, different services, sockets, and other units are started. Unlike runlevels, they are much more free-form and you can easily make your own targets for ordering units, and targets have dependencies among themselves.
+For instance, multi-user.target is what most daemons are grouped under, and it requires basic.target to be activated, which means that all services grouped under basic.target will be started before the ones in multi-user.target.
+
+Slices/Control Groups
+Systemd organizes processes in control groups. These are kernel level controllers that allow us to manage resource use on a system.  For example, all the processes started by an apache webserver will be in the same control group, CGI scripts included. This makes stopping an apache webserver much easier. This also moves the resource management settings from the process level to the application level by binding the system of CGroup hierarchies with the Systemd unit tree.
+
+3 default cgroups: system, user and machine. Each of these cgroups is also known as a “slice”.
+
+The three top level slices all have specific workloads that end up as sub-slices.
+•	System is where daemons and services are placed.
+•	User is where user sessions are placed. Each user gets a single slice under the main group, multiple logins using the same UID *do not* create more slices. This prevents clever nerds from stealing more resources than they are allowed.
+•	Machine is where hosted virtual machines are placed, such as KVM guests.
+
+With systemd it no longer necessary to create the cgroup manually. Instead, systemd introduces a new concept of slice, which is used to manage resources of a group of processes. Most services are placed in system.slice.
+
+system processes get 1024 CPUShares, user processes 1024 CPUShares and virtual machines 1024 CPUShares, which means 33% of CPU each by default (you will only see it if each category executes some tasks). However, each of these can be configured.
+
+One method of controlling resource usage is with the concept of “shares”. Shares are a relative value and the actual numbers only matter when compared to other values in the same cgroup. By default, slices are set to a value of 1024. So in our system slice above, httpd, sshd, crond and gdm are each set to use 1024 CPU shares. System, User and Machine are each set to 1024 themselves. If you’re having a hard time visualizing that, sometimes looking at it in the form of a tree helps:
+•	System - 1024
+o	httpd - 1024
+o	sshd - 1024
+o	crond - 1024
+o	gdm - 1024
+•	User - 1024
+o	bash (mrichter) - 1024
+o	bash (dorf) - 1024
+•	Machine - 1024
+o	testvm - 1024
+In this case, we have a few daemons running, two users logged in (you’ll meet both of them later) and a single virtual machine. 
+
+(reference: https://www.redhat.com/en/blog/world-domination-cgroups-part-1-cgroup-basics)
+(reference: https://www.redhat.com/en/blog/world-domination-cgroups-part-2-turning-knobs)
+(reference: https://www.certdepot.net/rhel7-get-started-cgroups/)
+
+
+Every slice has multiple properties that can be set on it. As is always the case in Linux, we can create configuration files by hand or use the command line to set them.
+
+Getting status of remote server
+
+https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/7/html/system_administrators_guide/sect-managing_services_with_systemd-remote
+
+
+
+systemctl commands
+
+Older Command	systemctl equivalent	Description
+halt	systemctl halt	Halts the system
+poweroff	systemctl poweroff	Powers off the system
+reboot	systemctl reboot	Restarts the system
+pm-suspend	systemctl suspend	Suspends the system
+pm-hibernate	systemctl hibernate	Hibernates the system
+pm-suspend-hybrid	systemctl hybrid-sleep	Hibernates and suspends the system
+
+
+Suspend
+– Suspending the system saves the system state in RAM and with the exception of the RAM module, powers off most of the devices in the machine.
+– When you turn the machine back on, the system then restores its state from RAM without having to boot again.
+– Because the system state is saved in RAM and not on the hard disk, restoring the system from suspend mode is significantly faster than restoring it from hibernation, but as a consequence, a suspended system state is also vulnerable to power outages.
+# systemctl reload [name.service]
+$ systemctl status [name.service]
+# systemctl is-active [name.service]
+$ systemctl list-units --type service –all
+
+how long every program and service takes to start up
+systemd-analyze blame
+
+Listing running services
+systemctl
+to get the full hierarchy of control groups
+
+systemd-cgls
+To get the list of control group ordered by CPU, memory and disk I/O load, type:
+systemd-cgtop
+
+To allocate 70% of CPU to the system processes, 20% of CPU to the user processes and 10% of CPU to the virtual machines, type:
+# systemctl set-property system.slice CPUShares=7168
+# systemctl set-property user.slice CPUShares=2048
+# systemctl set-property machine.slice CPUShares=1024
+Note: Rebooting might be necessary to see the changes.
+To restrict the user with the uid 1000 to use less than 20% of cpu, type:
+# systemctl set-property user-1000.slice CPUQuota=20%
+To reduce the memory available for the same user to 1GB, type:
+# systemctl set-property user-1000.slice MemoryLimit=1024M
+To limit the mariadb service to write below 2MB/s onto the /dev/vdb partition, type:
+# systemctl set-property mariadb.service BlockIOWriteBandwidth="/dev/vdb 2M"
+(reference: https://www.certdepot.net/rhel7-get-started-cgroups/)
+To get the slice name of a particular service
+systemctl show -p Slice foo.service
+
+To change the CPU usage limit of a service
+systemctl set-property foo.service CPUShares=250(The systemd.resource-control(5) man page has more information about cgroups-related parameters that you can pass to systemctl.)
+Setting the property caused additional file 90-CPUShares.conf to be created under /etc/systemd/system/foo.service.d. This file contains parameters to be appended to the configuration of foo.service unit. Actually applying the change requires reloading systemd and restarting foo.service:
+# systemctl daemon-reload
+# systemctl restart foo.service
+To cap a user’s(UID 1000) RAM
+systemctl set-property user-1000.slice MemoryLimit=200M(200 MB is excluding swap space)
+
+Restarting on exit
+By default, systemd does not restart your service if the program exits for whatever reason. This is usually not what you want for a service that must be always available, so we’re instructing it to always restart on exit:
+Restart=always
+You could also use on-failure to only restart if the exit status is not 0.
+By default, systemd attempts a restart after 100ms. You can specify the number of seconds to wait before attempting a restart, using:
+RestartSec=1
+
+
 
 
 
