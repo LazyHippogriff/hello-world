@@ -1,3 +1,24 @@
+ns1.cp-ht-9.webhostbox.net
+ns2.cp-ht-9.webhostbox.net
+
+OJV-359-30749(ticket no)
+
+673 footprints niti khand 2
+
+database name: dsscoplb_sailing_club_db_2992018
+user name: dsscoplb_cptnav
+password: Password@9
+
+wordpress admin user name:
+dsscokhla_sailing_club_cptnav2992018
+password: Password@cptnav2992018
+
+Database Name: wp236
+Table prefix: wpgf_
+
+wordpress administrative url:  http://dsscokhla.com/wp/wp-admin/
+
+
 Linux Commands
 
 To find the resources consumed by each thread of a pid
