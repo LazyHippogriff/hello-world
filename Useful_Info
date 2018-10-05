@@ -888,8 +888,1015 @@ By default, systemd attempts a restart after 100ms. You can specify the number o
 RestartSec=1
 
 
+****************************server-client-websocket*******************************************
+
+g++ -std=c++17 -g -o client_exe WSClient.cpp -luWS -lssl -lz -lcrypto -lpthread
+
+server.cpp
+
+#include "../src/uWS.h"
+#include<iostream>
+using namespace std;
+using namespace uWS;
+
+int main() {
+    Hub h;
+    std::string response = "Hello!";
+
+    h.onMessage([](WebSocket<SERVER> *ws, char *message, size_t length, OpCode opCode) {
+        ws->send(message, length, opCode);
+    });
+
+    h.onHttpRequest([&](HttpResponse *res, HttpRequest req, char *data, size_t length,
+                        size_t remainingBytes) {
+        res->end(response.data(), response.length());
+    });
+
+    if (h.listen("172.16.129.67",6689)) {
+            cout<<endl<<"listen success"<<endl;
+        h.run();
+    }
+    else
+    {
+            cout<<endl<<"listen failed"<<endl;
+            exit(-1);
+    }
+    while(1)
+    {
+    }
+}
 
 
+client.cpp
+
+#include<iostream>
+#include <stdio.h>
+#include "../src/uWS.h"
+
+using namespace std;
+bool g_isConnected = false;
+
+int main(int argc, char** argv)
+{
+ uWS::Hub h;
+ uWS::WebSocket<uWS::CLIENT> *l_ws;
+
+ h.onConnection([&l_ws](uWS::WebSocket<uWS::CLIENT> *ws, uWS::HttpRequest req) {
+  printf("Inside onConnection....\n");
+  g_isConnected = true;
+ });
+
+ h.onMessage([](uWS::WebSocket<uWS::CLIENT> *ws, char *message, size_t length, uWS::OpCode opCode) {
+     printf("Message received from server: %s\n",message);
+     printf("Message length received from server: %lu\n",length);
+     printf("Message length (strlen)received from server: %lu\n",strlen(message));
+     //  ws->send();
+ });
+ h.onDisconnection([&h](uWS::WebSocket<uWS::CLIENT> *ws, int code, char *message, size_t length) {
+     printf("Server disconnected\n");
+     g_isConnected = false;
+ });
+
+
+    h.onError([](void *user) {
+      printf("\n[%s::%d]-->onError \n",__FILE__,__LINE__);
+    });
+
+
+ if(argc != 2)
+ {
+   printf("Usage: ./client <port>\n");
+   exit(-1);
+ }
+
+ std::string l_port=(const char*)argv[1];
+ std::string l_uri="ws://172.16.129.67:6689";
+ printf("Connecting with URI: %s\n",l_uri.c_str());
+ while(!g_isConnected)
+ {
+         cout<<endl<<"while loop begin"<<endl;
+ h.connect(l_uri.c_str(), (void *) 34);
+ h.run();
+ sleep(2);
+ cout<<endl<<"while loop ends"<<endl;
+ }
+ cout<<endl<<"Program ends"<<endl;
+ return 0;
+}
+
+
+
+
+*****for JSON*****
+
+JioDiaConfig.cpp
+
+#include "pconfig/include/JioDiaConfig.hpp"
+
+  namespace jio
+  {
+   namespace diameter
+   {
+    namespace pconfig
+    {
+>>   DiaConfig* DiaConfig::ms_instance = nullptr;
+
+>>   DiaConfig* DiaConfig::getConfigInstance()
+     {
+      static DiaConfig * instance = new DiaConfig();
+      return instance;
+     }
+>>   bool sort_asc_vect (uint32_t fa_first,uint32_t fa_second)
+     {
+      return (fa_first<fa_second);
+     }
+
+>>   int DiaConfig::initStackConfig(char* fa_plJsonDataFile)
+     {
+      printf("[%s:%d]--> Entry :: initStackConfig() \n", __FILE__,__LINE__);
+
+      try{
+       m_confFilePath=fa_plJsonDataFile;
+       std::ifstream l_confDataIStream(fa_plJsonDataFile);
+       std::string l_confDataIStreamStr((std::istreambuf_iterator<char>(l_confDataIStream)),(std::istreambuf_iterator<char>()));
+
+       rapidjson::Document l_schemaDoc;
+       m_confDataDoc.Parse(l_confDataIStreamStr.c_str());
+       l_schemaDoc.Parse(g_plJsonSchema);
+
+       if(l_schemaDoc.HasParseError())
+       {
+        //fprintf(stderr, "\nError(offset %u): %s\n", (unsigned)l_schemaDoc.GetErrorOffset(),GetParseError_En(l_schemaDoc.GetParseError()));
+        printf("PL Conf JSON schema file is not a valid JSON\n");
+        return 1;
+      }
+       else
+       {
+        //fprintf(stdout,"[%s::%d]-->PL Conf JSON schema file is a valid JSON\n",__FILE__,__LINE__);
+       }
+       if(m_confDataDoc.HasParseError())
+       {
+        //fprintf(stderr, "\nError(offset %u): %s\n", (unsigned)m_confDataDoc.GetErrorOffset(),GetParseError_En(m_confDataDoc.GetParseError()));
+        printf("PL conf data JSON file is not a valid JSON\n");
+        return 1;
+       }
+       else
+       {
+        //fprintf(stdout,"[%s::%d]-->JSON conf data : %s file is a valid JSON\n",__FILE__,__LINE__,fa_plJsonDataFile);
+       }
+
+
+
+       rapidjson::SchemaDocument l_schemaDocument(l_schemaDoc);
+
+       rapidjson::SchemaValidator l_SchemaValidator(l_schemaDocument);
+
+       // Now validating the Json data file against the json schema file
+       if(m_confDataDoc.Accept(l_SchemaValidator))
+       {
+        printf("[%s::%s::%d] --> Data Parsing success against schema \n",__FILE__,__func__,__LINE__);
+        m_originHost = std::string(m_confDataDoc["StackConf"]["originHost"].GetString());
+        //fprintf(stdout,"[%s:%d]--> originHost  %s\n", __FILE__,__LINE__,m_originHost.c_str());
+
+        m_originRealm = std::string(m_confDataDoc["StackConf"]["originRealm"].GetString());
+        //fprintf(stdout,"[%s:%d]--> originRealm  %s\n", __FILE__,__LINE__,m_originRealm.c_str());
+
+        //Fetching transport
+        const rapidjson::Value& l_addressesArray = m_confDataDoc["StackConf"]["transport"]["addresses"];
+        for (rapidjson::SizeType l_itr=0;l_itr<l_addressesArray.Size() ; l_itr++)
+        {
+         addresses l_addresses;
+         const rapidjson::Value& l_ip_addressArray = l_addressesArray[l_itr]["ip_addresses"];
+         for(rapidjson::SizeType l_itrIpAddr =0;l_itrIpAddr<l_ip_addressArray.Size(); l_itrIpAddr++)
+         {
+          std::string l_ipAddr=l_ip_addressArray[l_itrIpAddr].GetString();
+          l_addresses.ip_address_list.push_back(l_ipAddr);
+          //fprintf(stdout,"[%s:%d]--> ip_address  %s\n", __FILE__,__LINE__,l_ipAddr.c_str());
+         }
+
+         l_addresses.port = l_addressesArray[l_itr]["port"].GetInt();
+         //fprintf(stdout,"[%s:%d]--> port  %d\n", __FILE__,__LINE__,l_addresses.port);
+
+         std::string l_transportType=l_addressesArray[l_itr]["transport_protocol"].GetString();
+         //fprintf(stdout,"[%s:%d]--> transport_protocol %s\n", __FILE__,__LINE__,l_transportType.c_str());
+         if(!l_transportType.compare(std::string("tcp")))
+          l_addresses.transport_protocol = DiaConfig::protocol::tcp_only;
+         else if(!l_transportType.compare(std::string("sctp")))
+          l_addresses.transport_protocol = DiaConfig::protocol::sctp_only;
+         else if(!l_transportType.compare(std::string("both")))
+          l_addresses.transport_protocol = DiaConfig::protocol::both;
+         else
+         {
+          //fprintf(stdout,"[%s:%d]--> Error in transport_protocol .. setting tcp_only\n", __FILE__,__LINE__);
+          l_addresses.transport_protocol = DiaConfig::protocol::tcp_only;
+         }
+
+         ip_addresses.push_back(l_addresses);
+
+        }
+
+        std::string l_mode(m_confDataDoc["StackConf"]["mode"].GetString());
+        //fprintf(stdout,"[%s:%d]--> mode  %s\n", __FILE__,__LINE__,l_mode.c_str());
+        if(!l_mode.compare(std::string("responder_mode")))
+         m_mode = DiaConfig::mode::responder_mode;
+        else if(!l_mode.compare(std::string("initiator_mode")))
+         m_mode = DiaConfig::mode::initiator_mode;
+        else
+        {
+         m_mode = DiaConfig::mode::responder_mode;
+        }
+
+        m_haEnabled=m_confDataDoc["StackConf"]["HAEnabled"].GetBool();
+        //fprintf(stdout,"[%s:%d]--> HA Enabled  %d\n", __FILE__,__LINE__, m_haEnabled);
+
+        std::string l_plStateManagement(m_confDataDoc["StackConf"]["plStateManagement"].GetString());
+        //fprintf(stdout,"[%s:%d]--> plStateManagement  %s\n", __FILE__,__LINE__,l_plStateManagement.c_str());
+        if(!l_plStateManagement.compare(std::string("state_aware")))
+         state_mgmt = DiaConfig::pl_state_management::state_aware;
+        else if(!l_plStateManagement.compare(std::string("no_state_aware")))
+         state_mgmt = DiaConfig::pl_state_management::no_state_aware;
+        else
+        {
+         //fprintf(stdout,"[%s:%d]--> Error in plStateManagement ..setting no_state_aware", __FILE__,__LINE__);
+         state_mgmt = DiaConfig::pl_state_management::no_state_aware;
+        }
+
+        pl_end_points=m_confDataDoc["StackConf"]["plEndPoint"].GetString();
+        //fprintf(stdout,"[%s:%d]--> PL Endpoint:%s\n", __FILE__,__LINE__,pl_end_points.c_str());
+
+        m_productName = m_confDataDoc["StackConf"]["productName"].GetString();;
+        //fprintf(stdout,"[%s:%d]--> productName  %s\n", __FILE__,__LINE__,m_productName.c_str());
+        m_isProvingOn =m_confDataDoc["StackConf"]["isProvingOn"].GetBool();
+        //fprintf(stdout,"[%s:%d]--> isProvingOn  %d\n", __FILE__,__LINE__,m_isProvingOn);
+
+        m_provingNoTrafficTimeOut = m_confDataDoc["StackConf"]["provingNoTrafficTimeOut"].GetInt();
+        //fprintf(stdout,"[%s:%d]--> provingNoTrafficTimeOut  %d\n", __FILE__,__LINE__,m_provingNoTrafficTimeOut);
+
+        m_provingDWRretryCount = m_confDataDoc["StackConf"]["provingDWRRetryCount"].GetInt();
+        //fprintf(stdout,"[%s:%d]--> provingDWRRetryCount  %d\n", __FILE__,__LINE__,m_provingDWRretryCount);
+        m_provingDWAtimeOut = m_confDataDoc["StackConf"]["provingDWATimeout"].GetInt();
+        //fprintf(stdout,"[%s:%d]--> provingDWAtimeOut  %d\n", __FILE__,__LINE__,m_provingDWAtimeOut);
+        m_healthCheckNoTrafficTimeOut = m_confDataDoc["StackConf"]["healthCheckNoTrafficTimeOut"].GetInt();;
+        //fprintf(stdout,"[%s:%d]--> m_healthCheckNoTrafficTimeOut  %d\n", __FILE__,__LINE__,m_healthCheckNoTrafficTimeOut);
+        m_healthCheckDWAtimeOut = m_confDataDoc["StackConf"]["healthCheckDWATimeout"].GetInt();
+        //fprintf(stdout,"[%s:%d]--> healthCheckDWAtimeOut  %d\n", __FILE__,__LINE__,m_healthCheckDWAtimeOut);
+                             
+        m_readWritePollingTimeOut =  m_confDataDoc["StackConf"]["readWritePollingTimeOut"].GetInt();
+        //fprintf(stdout,"[%s:%d]--> readWritePollingTimeOut  %d\n", __FILE__,__LINE__,m_readWritePollingTimeOut);
+
+        m_peerConnectionRetryTimer= m_confDataDoc["StackConf"]["peerConnectionRetryTimer"].GetInt();
+        //fprintf(stdout,"[%s:%d]--> peerConnectionRetryTimer  %d\n", __FILE__,__LINE__,m_peerConnectionRetryTimer);
+
+        m_vendorId = m_confDataDoc["StackConf"]["vendorID"].GetInt();
+        //fprintf(stdout,"[%s:%d]--> vendorID  %d\n", __FILE__,__LINE__,m_vendorId);
+
+        const rapidjson::Value& appIdArray=m_confDataDoc["StackConf"]["applicationIds"];
+        for(rapidjson::SizeType i=0;i<appIdArray.Size();i++)
+        {
+         uint32_t l_appId=appIdArray[i].GetInt();
+         //fprintf(stdout,"[%s:%d]--> applicationId  %d\n", __FILE__,__LINE__,l_appId);
+         m_applicationIds.insert(l_appId);
+        }
+
+        m_firmWareRevision =  m_confDataDoc["StackConf"]["FirmWareRev"].GetInt();
+        //fprintf(stdout,"[%s:%d]--> firmWareRevision  %d\n", __FILE__,__LINE__,m_firmWareRevision);
+
+        m_dictionaryPath = m_confDataDoc["StackConf"]["dictionaryPath"].GetString();
+        //fprintf(stdout,"[%s:%d]--> m_dictionaryPath  %s\n", __FILE__,__LINE__,m_dictionaryPath.c_str());
+
+         m_logFilePath = m_confDataDoc["StackConf"]["logFilePath"].GetString();
+                //fprintf(stdout,"[%s:%d]--> m_logFilePath %s\n", __FILE__,__LINE__,m_logFilePath.c_str());
+
+        m_maxLogFileSize= m_confDataDoc["StackConf"]["maxLogFileSize"].GetUint64();
+        //fprintf(stdout,"[%s:%d]--> m_maxLogFileSize %lu\n", __FILE__,__LINE__,m_maxLogFileSize);
+
+        m_logLevel=m_confDataDoc["StackConf"]["logLevel"].GetUint();
+        //fprintf(stdout,"[%s:%d]--> m_logLevel %u\n", __FILE__,__LINE__,m_logLevel);
+        //
+        m_flushSize=m_confDataDoc["StackConf"]["flushSize"].GetUint();
+        //fprintf(stdout,"[%s:%d]--> m_flushSize %lu\n", __FILE__,__LINE__,m_flushSize);
+
+        m_flushTime=m_confDataDoc["StackConf"]["flushTime"].GetUint();
+        //fprintf(stdout,"[%s:%d]--> m_flushTime %u\n", __FILE__,__LINE__,m_flushTime);
+        const rapidjson::Value& l_peerArray=m_confDataDoc["StackConf"]["memPoolPageListPL"];
+        for(rapidjson::SizeType i=0;i<l_peerArray.Size();i++)
+        {
+            //fprintf(stdout,"[%s:%d]--> memPoolPagePL data Entry Number: %d .. \n", __FILE__,__LINE__,i+1);
+            std::pair<uint32_t, uint32_t>  l_memPoolPagePL;
+            l_memPoolPagePL.first= l_peerArray[i]["memPoolPages"].GetInt();
+            //fprintf(stdout,"[%s:%d]--> memPoolPages %d \n", __FILE__,__LINE__,l_memPoolPagePL.first);
+
+            l_memPoolPagePL.second = l_peerArray[i]["memPoolPageSize"].GetInt();
+            //fprintf(stdout,"[%s:%d]--> memPoolPageSize %d \n", __FILE__,__LINE__,l_memPoolPagePL.second);
+
+            m_memPoolPageList.push_back(l_memPoolPagePL);
+        }
+        m_httpServerPort =  m_confDataDoc["StackConf"]["httpServerPort"].GetInt();
+        //fprintf(stdout,"[%s:%d]--> httpServerPort  %d\n", __FILE__,__LINE__,m_httpServerPort);
+
+        m_httpServerIPAddr=m_confDataDoc["StackConf"]["httpServerIPAddr"].GetString();
+        //fprintf(stdout,"[%s:%d]--> httpServerIPAddr  %s\n", __FILE__,__LINE__,m_httpServerIPAddr.c_str());
+
+       }
+       else
+       {
+        //fprintf(stdout,"[%s::%s::%d] --> Json Data Parsing failed against json schema \n",__FILE__,__func__,__LINE__);
+        return 1;
+       }
+
+
+       return 0;
+      }
+      catch(...)
+      {
+       //fprintf(stdout,"[%s:%d]--> Error in Parsing the Json file ..\n", __FILE__,__LINE__);
+       return 1;
+      }
+     }
+
+    }
+   }
+  }
+  
+  
+  ****JioJsonSchemas.hpp*****
+  
+  #ifndef __JIO_JSON_SCHEMAS__
+#define __JIO_JSON_SCHEMAS__
+
+// PL Configuration Json Schema
+const char g_plJsonSchema[]="{\
+  \"definitions\": {\
+    \"AddressesDef\": {\
+      \"title\": \"PL trasport configuration schema\",\
+      \"description\": \"JSON schema for PL transport configuration\",\
+      \"type\": \"array\",\
+      \"items\": {\
+        \"type\": \"object\",\
+        \"properties\": {\
+          \"ip_addresses\": {\
+            \"type\": \"array\",\
+            \"items\": {\
+              \"type\": \"string\"\
+            }\
+          },\
+          \"port\": {\
+            \"type\": \"number\"\
+          },\
+          \"transport_protocol\": {\
+            \"type\": \"string\",\
+            \"enum\": [\
+              \"sctp\",\
+              \"tcp\",\
+              \"both\"\
+            ]\
+          }\
+        },\
+        \"required\": [\
+          \"ip_addresses\",\
+          \"port\",\
+          \"transport_protocol\"\
+        ]\
+      }\
+    },\
+
+    \"PeerDef\": {\
+      \"title\": \"Peer Table Entry\",\
+      \"description\": \"JSON schema for an entry in Peer table\",\
+      \"type\": \"array\",\
+      \"items\": {\
+        \"properties\": {\
+          \"peerHost\": {\
+            \"type\": \"string\"\
+          },\
+          \"peerRealm\": {\
+            \"type\": \"string\"\
+          },\
+          \"peerIpAddr\": {\
+            \"type\": \"string\"\
+          },\
+          \"peerPort\": {\
+            \"type\": \"number\"\
+          },\
+          \"transportType\": {\
+            \"type\": \"string\",\
+            \"enum\": [\
+              \"sctp\",\
+              \"tcp\",\
+              \"both\"\
+            ]\
+          },\
+          \"adminState\": {\
+            \"type\": \"string\",\
+            \"enum\": [\
+              \"enabled\",\
+              \"disabled\"\
+            ]\
+          }\
+        },\
+        \"required\": [\
+          \"peerHost\",\
+          \"peerRealm\",\
+          \"peerIpAddr\",\
+          \"peerPort\",\
+          \"transportType\",\
+          \"adminState\"\
+        ]\
+      }\
+    },\
+    \"RouteDef\": {\
+      \"title\": \"Route Table Entry\",\
+      \"description\": \"JSON schema for an entry in route table\",\
+      \"type\": \"array\",\
+      \"items\": {\
+        \"properties\": {\
+          \"Realm\": {\
+            \"type\": \"string\"\
+          },\
+          \"appId\": {\
+            \"type\": \"number\"\
+          },\
+          \"peerHost\": {\
+            \"type\": \"string\"\
+          },\
+          \"priority\": {\
+            \"type\": \"number\"\
+          },\
+          \"adminState\": {\
+            \"type\": \"string\",\
+            \"enum\": [\
+              \"enabled\",\
+              \"disabled\"\
+            ]\
+          }\
+        },\
+        \"required\": [\
+          \"Realm\",\
+          \"appId\",\
+          \"peerHost\",\
+          \"priority\",\
+          \"adminState\"\
+        ]\
+      }\
+    },\
+    \"memPoolPageListPLDef\": {\
+      \"title\": \"Memory Pool Page List PL\",\
+      \"description\": \"JSON schema for memory pool page list of PL\",\
+      \"type\": \"array\",\
+      \"items\": {\
+        \"properties\": {\
+          \"memPoolPages\": {\
+            \"type\": \"number\"\
+          },\
+          \"memPoolPageSize\": {\
+            \"type\": \"number\"\
+          }\
+        },\
+        \"required\": [\
+          \"memPoolPages\",\
+          \"memPoolPageSize\"\
+        ]\
+      }\
+  }\
+},\
+  \"$schema\": \"http://json-schema.org/draft-04/schema#\",\
+  \"title\": \"PL configuration schema\",\
+  \"description\": \"JSON schema for PL configuration\",\
+  \"type\": \"object\",\
+  \"properties\": {\
+    \"StackConf\": {\
+      \"title\": \"Stack Configuration\",\
+      \"description\": \"JSON schema of stack configuration\",\
+      \"type\": \"object\",\
+      \"properties\": {\
+        \"originHost\": {\
+          \"type\": \"string\"\
+        },\
+        \"originRealm\": {\
+          \"type\": \"string\"\
+        },\
+        \"transport\": {\
+          \"type\": \"object\",\
+          \"properties\": {\
+            \"addresses\": {\
+              \"$ref\": \"#/definitions/AddressesDef\"\
+            }\
+          }\
+        },\
+        \"mode\": {\
+          \"type\": \"string\",\
+          \"enum\": [\
+            \"responder_mode\",\
+            \"initiator_mode\"\
+          ]\
+        },\
+ \"HAEnabled\": {\
+          \"type\": \"boolean\"\
+        },\
+        \"plStateManagement\": {\
+          \"type\": \"string\",\
+          \"enum\": [\
+            \"no_state_aware\",\
+            \"state_aware\"\
+          ]\
+        },\
+        \"plEndPoint\": {\
+          \"type\": \"string\"\
+        },\
+        \"productName\": {\
+          \"type\": \"string\"\
+        },\
+        \"isProvingOn\": {\
+          \"type\": \"boolean\"\
+        },\
+        \"provingNoTrafficTimeOut\": {\
+          \"type\": \"number\"\
+        },\
+        \"provingDWRRetryCount\": {\
+          \"type\": \"number\"\
+        },\
+        \"provingDWATimeout\": {\
+          \"type\": \"number\"\
+        },\
+        \"healthCheckNoTrafficTimeOut\": {\
+          \"type\": \"number\"\
+        },\
+        \"healthCheckDWRRetryCount\": {\
+          \"type\": \"number\"\
+        },\
+        \"healthCheckDWATimeout\": {\
+          \"type\": \"number\"\
+        },\
+        \"readWritePollingTimeOut\": {\
+          \"type\": \"number\"\
+        },\
+  \"peerConnectionRetryTimer\": {\
+            \"type\": \"number\"\
+         },\
+        \"vendorID\": {\
+          \"type\": \"number\"\
+        },\
+        \"applicationIds\": {\
+          \"type\": \"array\",\
+          \"items\": {\
+            \"type\": \"number\"\
+          }\
+        },\
+        \"FirmWareRev\": {\
+          \"type\": \"number\"\
+        },\
+ \"dictionaryPath\": {\
+          \"type\": \"string\"\
+        },\
+ \"logFilePath\": {\
+          \"type\": \"string\"\
+        },\
+ \"maxLogFileSize\": {\
+          \"type\": \"number\"\
+        },\
+ \"logLevel\": {\
+          \"type\": \"number\"\
+        },\
+ \"flushSize\": {\
+          \"type\": \"number\"\
+        },\
+ \"flushTime\": {\
+          \"type\": \"number\"\
+        },\
+    \"memPoolPageListPL\": {\
+      \"$ref\": \"#/definitions/memPoolPageListPLDef\"\
+    },\
+        \"httpServerPort\": {\
+          \"type\": \"number\"\
+        },\
+ \"httpServerIPAddr\": {\
+          \"type\": \"string\"\
+        }\
+  },\
+      \"required\": [\
+        \"originHost\",\
+        \"originRealm\",\
+        \"transport\",\
+        \"mode\",\
+        \"HAEnabled\",\
+        \"plStateManagement\",\
+        \"plEndPoint\",\
+        \"productName\",\
+        \"isProvingOn\",\
+        \"provingNoTrafficTimeOut\",\
+        \"provingDWRRetryCount\",\
+        \"provingDWATimeout\",\
+        \"healthCheckNoTrafficTimeOut\",\
+        \"healthCheckDWRRetryCount\",\
+        \"healthCheckDWATimeout\",\
+        \"readWritePollingTimeOut\",\
+        \"peerConnectionRetryTimer\",\
+        \"vendorID\",\
+        \"applicationIds\",\
+        \"FirmWareRev\",\
+    \"dictionaryPath\",\
+    \"logFilePath\",\
+    \"maxLogFileSize\",\
+    \"logLevel\",\
+    \"flushSize\",\
+    \"flushTime\",\
+        \"memPoolPageListPL\",\
+        \"httpServerPort\",\
+        \"httpServerIPAddr\"\
+      ]\
+    },\
+    \"PeerTable\": {\
+      \"$ref\": \"#/definitions/PeerDef\"\
+    },\
+    \"RoutingTable\": {\
+      \"$ref\": \"#/definitions/RouteDef\"\
+    }\
+  },\
+  \"required\": [\
+    \"StackConf\",\
+    \"PeerTable\",\
+    \"RoutingTable\"\
+  ]\
+}";
+
+//Peer Addition JSON Schema
+const char g_peerAddSchema[]="{\
+        \"$schema\": \"http://json-schema.org/draft-04/schema#\",\
+        \"title\": \"Peer addition schema\",\
+        \"description\": \"JSON schema for validating insertion into Peer Table\",\
+        \"type\": \"object\",\
+        \"properties\": {\
+                \"peerHost\": {\
+                        \"type\": \"string\"\
+                },\
+                \"peerRealm\": {\
+                        \"type\": \"string\"\
+                },\
+                \"peerIpAddr\": {\
+                        \"type\": \"string\"\
+                },\
+                \"peerPort\": {\
+                        \"type\": \"number\"\
+                },\
+                \"transportType\": {\
+                        \"type\": \"string\",\
+                        \"enum\": [\
+                                \"sctp\",\
+                        \"tcp\",\
+                        \"both\"\
+                                ]\
+                },\
+                \"adminState\": {\
+                        \"type\": \"string\",\
+                        \"enum\": [\
+                                \"enabled\",\
+                        \"disabled\"\
+                                ]\
+                        }\
+        },\
+        \"required\": [\
+                \"peerHost\",\
+        \"peerRealm\",\
+        \"peerIpAddr\",\
+        \"peerPort\",\
+        \"transportType\",\
+ \"adminState\"\
+                ]\
+}";
+//Peer Updation JSON Schema
+const char g_peerUpdateSchema[]="{\
+        \"$schema\": \"http://json-schema.org/draft-04/schema#\",\
+        \"title\": \"Peer Update\",\
+        \"description\": \"JSON schema for updation of peer entry in peer table\",\
+        \"type\": \"object\",\
+        \"properties\": {\
+                \"peerHost\": {\
+                        \"type\": \"string\"\
+                },\
+                \"peerRealm\": {\
+                        \"type\": \"string\"\
+                },\
+                \"peerIpAddr\": {\
+                        \"type\": \"string\"\
+                },\
+                \"peerPort\": {\
+                        \"type\": \"number\"\
+                },\
+                \"transportType\": {\
+                        \"type\": \"string\",\
+                        \"enum\": [\
+                                \"sctp\",\
+                        \"tcp\",\
+                        \"both\"\
+                                ]\
+                },\
+                \"adminState\": {\
+                        \"type\": \"string\",\
+                        \"enum\": [\
+                                \"enabled\",\
+                        \"disabled\"\
+                                ]\
+                        }\
+                },\
+                \"anyOf\": [\
+                                {\"required\": [\"peerRealm\"]},\
+                                {\"required\": [\"peerIpAddr\"]},\
+                                {\"required\": [\"peerPort\"]},\
+                                {\"required\": [\"transportType\"]},\
+                                {\"required\": [\"adminState\"]}\
+                        ],\
+                \"required\": [\"peerHost\"]\
+}";
+
+//Peer Deletion JSON Schema
+const char g_peerDeleteSchema[]="{\
+        \"$schema\": \"http://json-schema.org/draft-04/schema#\",\
+        \"title\": \"Peer deletion schema\",\
+        \"description\": \"JSON schema for validating deletion of an entry from peer table\",\
+        \"type\": \"object\",\
+        \"properties\": {\
+                \"peerHost\": {\
+                        \"type\": \"string\"\
+                }\
+        },\
+        \"required\": [\
+                \"peerHost\"\
+                ]\
+}";
+
+//Get Peer Counters JSON Schema
+const char g_getPeerCountersSchema[]="{\
+        \"$schema\": \"http://json-schema.org/draft-04/schema#\",\
+        \"title\": \"Peer counters retrieval schema\",\
+        \"description\": \"JSON schema for validating retrieval of counters of an entry from peer table\",\
+        \"type\": \"object\",\
+        \"properties\": {\
+                \"peerHost\": {\
+                        \"type\": \"string\"\
+                }\
+        },\
+        \"required\": [\
+                \"peerHost\"\
+                ]\
+}";
+//Reset Peer Counters JSON Schema
+const char g_resetPeerCountersSchema[]="{\
+        \"$schema\": \"http://json-schema.org/draft-04/schema#\",\
+        \"title\": \"Peer counters reset schema\",\
+        \"description\": \"JSON schema for validating resettting of counters of an entry in  peer table\",\
+        \"type\": \"object\",\
+        \"properties\": {\
+                \"peerHost\": {\
+                        \"type\": \"string\"\
+                }\
+        },\
+        \"required\": [\
+                \"peerHost\"\
+                ]\
+}";
+
+//Peer Link Reset JSON Schema
+const char g_peerLinkResetSchema[]="{\
+        \"$schema\": \"http://json-schema.org/draft-04/schema#\",\
+        \"title\": \"Peer Link Reset schema\",\
+        \"description\": \"JSON schema for validating resetting of peer's transport link\",\
+        \"type\": \"object\",\
+        \"properties\": {\
+                \"peerHost\": {\
+                        \"type\": \"string\"\
+                }\
+        },\
+        \"required\": [\
+                \"peerHost\"\
+                ]\
+}";
+
+//Route Addition JSON Schema
+const char g_routeAddSchema[]="{\
+        \"$schema\": \"http://json-schema.org/draft-04/schema#\",\
+        \"title\": \"Route addition schema\",\
+        \"description\": \"JSON schema for validating insertion into Route Table\",\
+        \"type\": \"object\",\
+        \"properties\": {\
+                \"Realm\": {\
+                        \"type\": \"string\"\
+                },\
+                \"appId\": {\
+                        \"type\": \"number\"\
+                },\
+                \"peerHost\": {\
+                        \"type\": \"string\"\
+                },\
+                \"priority\": {\
+                        \"type\": \"number\"\
+                },\
+                \"adminState\": {\
+                        \"type\": \"string\",\
+                        \"enum\": [\
+                                \"enabled\",\
+                        \"disabled\"\
+                                ]\
+                }\
+        },\
+        \"required\": [\
+                \"Realm\",\
+        \"appId\",\
+        \"peerHost\",\
+        \"priority\",\
+        \"adminState\"\
+        ]\
+}";
+
+//Route Updation JSON Schema
+const char g_routeUpdateSchema[]="{\
+        \"$schema\": \"http://json-schema.org/draft-04/schema#\",\
+        \"title\": \"Route updation schema\",\
+        \"description\": \"JSON schema for validating updation of an entry into Route Table\",\
+        \"type\": \"object\",\
+        \"properties\": {\
+                \"Realm\": {\
+                        \"type\": \"string\"\
+                },\
+                \"appId\": {\
+                        \"type\": \"number\"\
+                },\
+                \"peerHost\": {\
+                        \"type\": \"string\"\
+                },\
+                \"priority\": {\
+                        \"type\": \"number\"\
+                },\
+                \"adminState\": {\
+                        \"type\": \"string\",\
+                        \"enum\": [\
+                                \"enabled\",\
+                        \"disabled\"\
+                                ]\
+                }\
+        },\
+        \"anyOf\": [\
+                        {\"required\":[\"priority\"]},\
+                        {\"required\":[\"adminState\"]}\
+                ],\
+        \"required\": [\"Realm\",\"appId\",\"peerHost\"]\
+}";
+
+//Route Deletion JSON Schema
+const char g_routeDeleteSchema[]="{\
+        \"$schema\": \"http://json-schema.org/draft-04/schema#\",\
+        \"title\": \"Route deletion schema\",\
+        \"description\": \"JSON schema for validating deletion of an entry into Route Table\",\
+        \"type\": \"object\",\
+        \"properties\": {\
+                \"Realm\": {\
+                        \"type\": \"string\"\
+                },\
+                \"appId\": {\
+                        \"type\": \"number\"\
+                },\
+                \"peerHost\": {\
+                        \"type\": \"string\"\
+                }\
+        },\
+        \"required\": [\
+                \"Realm\",\
+                \"appId\",\
+                \"peerHost\"\
+        ]\
+}";
+
+//Peer Info Display JSON Schema
+const char g_viewPeerInfoSchema[]="{\
+        \"$schema\": \"http://json-schema.org/draft-04/schema#\",\
+        \"title\": \"Peer Info Display schema\",\
+        \"description\": \"JSON schema for validating display of info of a single peer\",\
+        \"type\": \"object\",\
+        \"properties\": {\
+                \"peerHost\": {\
+                        \"type\": \"string\"\
+                }\
+        },\
+        \"required\": [\
+                \"peerHost\"\
+        ]\
+}";
+
+//Route Info Display JSON Schema
+const char g_viewRouteInfoSchema[]="{\
+        \"$schema\": \"http://json-schema.org/draft-04/schema#\",\
+        \"title\": \"Route Info Display schema\",\
+        \"description\": \"JSON schema for validating display of info of a single route\",\
+        \"type\": \"object\",\
+        \"properties\": {\
+                \"Realm\": {\
+                        \"type\": \"string\"\
+                },\
+                \"appId\": {\
+                        \"type\": \"number\"\
+                }\
+        },\
+        \"required\": [\
+                \"Realm\",\
+		\"appId\"\
+        ]\
+}";
+
+//Set Log Level JSON Schema
+const char g_setLogLevelSchema[]="{\
+        \"$schema\": \"http://json-schema.org/draft-04/schema#\",\
+        \"title\": \"Set log level schema\",\
+        \"description\": \"JSON schema for validating request for setting log level\",\
+        \"type\": \"object\",\
+        \"properties\": {\
+                \"logLevel\": {\
+                        \"type\": \"number\"\
+                }\
+        },\
+        \"required\": [\
+                \"logLevel\"\
+        ]\
+}";
+#endif//__JIO_JSON_SCHEMAS__
+
+
+******Stack_Event_Schema.json********
+{
+  "$schema": "http://json-schema.org/draft-04/schema#",
+  "title": "Event schema",
+  "description": "This is json schema for fault/events",
+  "type": "object",
+  "properties": {
+    "EventType": {
+      "description": "Event type name",
+      "type": "string",
+      "enum": [
+        "PEER_UP",
+        "PEER_DOWN",
+	"PL_UP",
+	"PL_DOWN",
+	"UL_UP",
+	"UL_DOWN",
+	"COMM_ERROR",
+	"INIT_ERROR",
+        "PEER_HEALTH_CHK_MISS",
+        "RESOURCE_THRES_BREACH"
+      ]
+    },
+    "OriginatingObject": {
+      "description": "Event Orginating object name",
+      "type": "string",
+      "maxLength": 30
+    },
+    "TimeStamp": {
+      "description": "Timestamp of event",
+      "type": "string",
+      "maxLength": 30
+    },
+    "Description": {
+      "description": "Detail of the event occured",
+      "type": "string",
+      "maxLength": 50
+    }
+  },
+  "required": [
+    "EventType",
+    "OriginatingObject",
+    "TimeStamp",
+    "Description"
+  ]
+}
+
+
+**********Stack_UL_configuration_Data.json***********
+
+{
+			"numOfWorkerThreads": 6,
+			"UlapplicationIds": [4],
+			"provideEndPoint": "/tmp/diameter.endpoint5500",
+			"ulName": "OCS5500",
+			"dictionaryPath": "data/Dictionary.xml",
+				"logFilePath": "/tmp/",
+				"maxLogFileSize": 10240000,
+				"logLevel":1,
+			"isValidationOn": true,
+				"memPoolPageList": [
+				{
+								"memPoolPages" : 300000,
+								"memPoolPageSize" : 1000
+				},
+				{
+								"memPoolPages" : 400000,
+								"memPoolPageSize" : 3000
+				},
+				{
+								"memPoolPages" : 500000,
+								"memPoolPageSize" : 500
+				}
+				],
+			"sessionPoolSize": 100000
+}
+
+                                                      
 
 
 
