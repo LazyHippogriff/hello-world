@@ -1,0 +1,339 @@
+*****************************************************************************************************
+DbJsonSchema.hpp
+*****************************************************************************************************
+
+#ifndef __DB_JSON_SCHEMAS__
+#define __DB_JSON_SCHEMAS__
+
+
+const char g_plJsonSchema[]="{\
+			     \"$schema\": \"http://json-schema.org/draft-04/schema#\",\
+			     \"title\": \"DB Schema Scalars\",\
+			     \"description\": \"JSON schema for validating Db Scalar Json file\",\
+			     \"type\": \"object\",\
+			     \"properties\": {\
+			     \"RF\": { \"type\": \"number\" },\
+			     \"FE_NAMESPACE\": { \"type\": \"string\" },\
+			     \"CONF_NAMESPACE\": { \"type\": \"string\" },\
+			     \"COS_NAMESPACE\": { \"type\": \"string\" },\
+			     \"G_READ_CONSISTENCY\": \
+{\
+	\"type\": \"string\", \"enum\":[\
+		\"AS_POLICY_CONSISTENCY_LEVEL_ONE\",\
+		\"AS_POLICY_CONSISTENCY_LEVEL_ALL\"\
+		]\
+},\
+	\"G_READ_KEY\": \
+{\
+	\"type\": \"string\", \"enum\":[\
+		\"AS_POLICY_KEY_DIGEST\",\
+		\"AS_POLICY_KEY_SEND\"\
+		]\
+},\
+	\"G_READ_REPLICA\": \
+{\
+	\"type\": \"string\", \"enum\":[\
+		\"AS_POLICY_REPLICA_MASTER\",\
+		\"AS_POLICY_REPLICA_ANY\",\
+		\"AS_POLICY_REPLICA_SEQUENCE\"\
+		]\
+},\
+	\"G_WRITE_COMMIT_LVL\": \
+{\
+	\"type\": \"string\", \"enum\":[\
+		\"AS_POLICY_COMMIT_LEVEL_ALL\",\
+		\"AS_POLICY_COMMIT_LEVEL_MASTER\"\
+		]\
+},\
+	\"G_WRITE_KEY\": \
+{\
+	\"type\": \"string\", \"enum\":[\
+		\"AS_POLICY_KEY_DIGEST\",\
+		\"AS_POLICY_KEY_SEND\"\
+		]\
+},\
+	\"G_WRITE_REPLICA\": \
+{\
+	\"type\": \"string\", \"enum\":[\
+		\"AS_POLICY_REPLICA_MASTER\",\
+		\"AS_POLICY_REPLICA_ANY\",\
+		\"AS_POLICY_REPLICA_SEQUENCE\"\
+		]\
+},\
+	\"L_WRITE_COMMIT_LVL\": \
+{\
+	\"type\": \"string\", \"enum\":[\
+		\"AS_POLICY_COMMIT_LEVEL_ALL\",\
+		\"AS_POLICY_COMMIT_LEVEL_MASTER\"\
+		]\
+},\
+	\"READ_TIMEOUT\": { \"type\": \"number\" },\
+	\"WRITE_TIMEOUT\": { \"type\": \"number\" },\
+	\"DURABLE_DELETE\":{ \"type\": \"boolean\"}\
+	},\
+	\"required\": [\
+	\"RF\",\
+	\"FE_NAMESPACE\",\
+	\"CONF_NAMESPACE\",\
+	\"COS_NAMESPACE\",\
+	\"G_READ_CONSISTENCY\",\
+	\"G_READ_KEY\",\
+	\"G_READ_REPLICA\",\
+	\"G_WRITE_COMMIT_LVL\",\
+	\"G_WRITE_KEY\",\
+	\"G_WRITE_REPLICA\",\
+	\"L_WRITE_COMMIT_LVL\",\
+	\"READ_TIMEOUT\",\
+	\"WRITE_TIMEOUT\",\
+	\"DURABLE_DELETE\"\
+	]\
+	}";
+
+#endif
+
+
+
+
+*****************************************************************************************************
+DBconf.json
+*****************************************************************************************************
+
+{
+	"RF":2,
+	"FE_NAMESPACE":"nbiot_hss",
+	"CONF_NAMESPACE":"nbiot_hss_conf",
+	"COS_NAMESPACE":"nbiot_hss",
+	"G_READ_CONSISTENCY":"AS_POLICY_CONSISTENCY_LEVEL_ONE",
+	"G_READ_KEY":"AS_POLICY_KEY_DIGEST",
+	"G_READ_REPLICA":"AS_POLICY_REPLICA_MASTER",
+	"G_WRITE_COMMIT_LVL":"AS_POLICY_COMMIT_LEVEL_ALL",
+	"G_WRITE_KEY":"AS_POLICY_KEY_DIGEST",
+	"G_WRITE_REPLICA":"AS_POLICY_REPLICA_MASTER",
+	"L_WRITE_COMMIT_LVL":"AS_POLICY_COMMIT_LEVEL_ALL",
+	"READ_TIMEOUT":1,
+	"WRITE_TIMEOUT":1,
+	"DURABLE_DELETE":true
+}
+
+
+*****************************************************************************************************
+Test_Server.cpp
+*****************************************************************************************************
+
+
+#include "DbJsonSchema.hpp"
+#include <rapidjson/document.h>
+#include <rapidjson/schema.h>
+#include "../src/uWS.h"
+#include<iostream>
+using namespace std;
+using namespace uWS;
+
+int main() {
+    Hub h;
+    std::string response = "Hello!";
+
+				h.onMessage([](WebSocket<SERVER> *ws, char *message, size_t length, OpCode opCode) {
+
+																				try
+																				{
+																				string received(message,message+length);
+																				cout<<endl<<"Received message--> "<<received<<endl;
+																				string resp="received";
+																				cout<<endl<<"Now sending to client"<<endl;
+																				ws->send(resp.c_str());
+
+																				rapidjson::Document l_schemaDoc;
+
+																				l_schemaDoc.Parse(g_plJsonSchema);
+																				if(l_schemaDoc.HasParseError())
+																				{
+																				printf("JSON schema file is not a valid JSON file\n");
+																				ws->send("JSON schema file is not a valid JSON file");
+																				exit(0);
+																				}
+																				else
+																				{
+																												printf("JSON schema file is a valid JSON file\n");
+																				}
+
+																				rapidjson::SchemaDocument l_schemaDocument(l_schemaDoc);
+																				rapidjson::SchemaValidator l_SchemaValidator(l_schemaDocument);
+
+																				rapidjson::Document l_confDoc;
+																				l_confDoc.Parse(received.c_str());
+
+																				if(l_confDoc.HasParseError())
+																				{
+																												printf("JSON file is not a valid JSON file\n");
+																				//								exit(0);
+																				}
+																				else
+																				{
+																												printf("JSON file is a valid JSON file\n");
+																				}
+
+																				if(l_confDoc.Accept(l_SchemaValidator))
+																				{
+																												printf("[%s::%d] --> Data Parsing success against schema \n",__FILE__,__LINE__);
+																												ws->send("Data Parsing success against schema");
+																												cout<<endl<<"RF: "<<l_confDoc["RF"].GetInt()<<endl;
+																												cout<<endl<<"FE_NAMESPACE: "<<l_confDoc["FE_NAMESPACE"].GetString()<<endl;;
+																												cout<<endl<<"CONF_NAMESPACE: "<<l_confDoc["CONF_NAMESPACE"].GetString()<<endl;
+																				}
+																				else
+																				{
+																												 ws->send("Data Parsing failed against schema");
+																				}
+																				}
+				catch(...)
+				{
+												cout<<endl<<"Exception caught in \"On_Message\""<<endl;
+												exit(-1);
+				}
+
+
+				});
+
+
+    if (h.listen("172.16.129.67",6689)) {
+												cout<<endl<<"listen success"<<endl;
+        h.run();
+    }
+				else
+				{
+												cout<<endl<<"listen failed"<<endl;
+												exit(-1);
+				}
+}
+
+
+*****************************************************************************************************
+WSClient.cpp
+*****************************************************************************************************
+
+#include<iostream>
+#include <fstream>
+#include <rapidjson/document.h>
+#include <rapidjson/schema.h>
+#include <stdio.h>
+#include "DbJsonSchema.hpp"
+#include "../src/uWS.h"
+
+using namespace std;
+bool g_isConnected = false;
+
+int main(int argc, char** argv)
+{
+	uWS::Hub h;
+	uWS::WebSocket<uWS::CLIENT> *l_ws;
+
+	h.onConnection([&l_ws](uWS::WebSocket<uWS::CLIENT> *ws, uWS::HttpRequest req) {
+
+																	try
+																	{
+																	printf("Inside onConnection....\n");
+																	g_isConnected = true;
+																	string send="Client will now send a json file as string";
+																	ws->send(send.c_str());
+
+																	ifstream ifs("dbconf.json");
+																	string json_string((istreambuf_iterator<char>(ifs)), (istreambuf_iterator<char>() ));
+
+																	rapidjson::Document l_confDoc;
+																	l_confDoc.Parse(json_string.c_str());
+
+																	if(l_confDoc.HasParseError())
+																	{
+																	printf("JSON file is not a valid JSON file\n");
+																	exit(0);
+																	}
+																	else
+																	{
+																									printf("JSON file is a valid JSON file\n");
+																	}
+
+																	ws->send(json_string.c_str()); 
+																	cout<<endl<<"JSON string was successfully sent by the client"<<endl;
+																	}
+	catch(...)
+	{
+									cout<<endl<<"Exception caught inside \"On Connection\""<<endl;
+									exit(-1);
+	}
+	});
+
+	h.onMessage([](uWS::WebSocket<uWS::CLIENT> *ws, char *message, size_t length, uWS::OpCode opCode) {
+					printf("Message received from server: %s\n",message);
+					printf("Message length received from server: %lu\n",length);
+					printf("Message length (strlen)received from server: %lu\n",strlen(message));
+					cout<<endl<<"Print ends"<<endl;
+					//		ws->send();
+	});
+	h.onDisconnection([&h](uWS::WebSocket<uWS::CLIENT> *ws, int code, char *message, size_t length) {
+					printf("Server disconnected\n");
+					g_isConnected = false;
+	});
+
+
+    h.onError([](void *user) {
+      printf("\n[%s::%d]-->onError \n",__FILE__,__LINE__);
+    });
+
+
+	if(argc != 2)
+	{
+			printf("Usage: ./client <port>\n");
+			exit(-1);
+	}	
+
+	std::string l_port=(const char*)argv[1];	
+	std::string l_uri="ws://172.16.129.67:6689";
+	printf("Connecting with URI: %s\n",l_uri.c_str());
+	while(!g_isConnected)
+	{
+									cout<<endl<<"while loop begin"<<endl;
+	h.connect(l_uri.c_str(), (void *) 34);
+	cout<<endl<<"after connect"<<endl;
+	h.run();
+	sleep(2);
+	cout<<endl<<"while loop ends"<<endl;
+	}
+	cout<<endl<<"Program ends"<<endl;
+	return 0;
+}
+
+
+*****************************************************************************************************
+Temp.cpp
+*****************************************************************************************************
+
+
+#include "DbJsonSchema.hpp"
+#include <rapidjson/document.h>
+#include <rapidjson/schema.h>
+#include<rapidjson/prettywriter.h>
+#include<rapidjson/stringbuffer.h>
+#include<iostream>
+using namespace std;
+using namespace rapidjson;
+int main() {
+								const char* json = "{\"project\":\"rapidjson\",\"stars\":10}";
+								Document d;
+								d.Parse(json);
+
+								// 2. Modify it by DOM.
+								Value& s = d["stars"];
+								s.SetInt(s.GetInt() + 1);
+
+								Value& x = d["project"];
+								x.SetString("Test",4);
+
+    StringBuffer buffer;
+    Writer<StringBuffer> writer(buffer);
+    d.Accept(writer);
+
+    std::cout << buffer.GetString() << std::endl;
+    return 0;
+
+}
