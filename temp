@@ -1,0 +1,1390 @@
+**************************************************************************************
+**************************************************************************************
+RtQueryString.hpp
+**************************************************************************************
+**************************************************************************************
+
+
+#ifndef __RT_QUERYSTRING_HPP__
+#define __RT_QUERYSTRING_HPP__
+
+#define RT_GET_IMSI_FROM_MSISDN "select imsi from msisdn_imsi where msisdn=?"
+
+#define RT_GET_ALL_SERVICE_PROF "select * from service_profile"
+
+#define RT_UPDATE_EPC_TABLE "update epc_table set subcrttime=? , imei=?,admin_data_upd=?,rtauthdata=?,rtepcdynamic=?,rtepslocinfo=?,rts6tdd=?,	no_of_scef_data=? where imsi=?"
+
+#define RT_GET_FULL_EPC_TABLE "select admin_data_upd,cos_id,isservedaddr,sub_status,subcrttime,rtauthdata,rtepcdynamic, \
+				rtepslocinfo,rts6tdd,rtservedaddress,extidportid,msisdn,imei,no_of_scef_data from epc_table \
+				where imsi=?"
+				
+#endif // __RT_QUERYSTRING_HPP__
+
+
+**************************************************************************************
+**************************************************************************************
+RtException.hpp
+**************************************************************************************
+**************************************************************************************
+
+#ifndef __RTEXCEPTION_HPP__
+#define __RTEXCEPTION_HPP__
+
+#include <string.h>
+#include <stdio.h>
+#include <exception>
+
+using namespace std;
+
+typedef enum 
+{
+	NO_ROW_FETCHED = 1001,
+	NO_ROW_UPDATED,
+	INVALID_INPUT,
+	RT_DB_SUCCESS = 2000,
+	RT_DB_FATAL,
+	DUPLICATE_ENTRY,
+	MEM_ALLOC_FAILED,
+	BLOB_LENGTH_ZERO,
+	NULL_BLOB,
+	NO_ROW_DELETED,
+	NO_ROW_FOUND,
+	CALLBACK_ERROR
+}RtReturnCodes;
+
+
+class RtException : public std::exception
+{
+	public :
+		char error[250];
+		unsigned int errNumber;
+		char errString[201];
+
+		virtual ~RtException() throw(){}
+
+		RtException(int errNumber_,char *errString_):errNumber(errNumber_)
+	{
+		memset(errString, 0, 201);
+		memset(error, 0, 250);
+
+		if(strlen(errString_) <= 200)
+			strcpy(errString,errString_);
+		else
+		{
+			strncpy(errString,errString_,200);
+			errString[200]  = '\0';
+		}
+		sprintf(error,"%d",errNumber);
+		strcat(error,":");
+		if(strlen(errString_) <= 200)
+			strcat(error,errString);
+		else
+		{
+			strncpy(errString,errString_,200);
+			errString[200]  = '\0';
+		}
+	}
+
+
+		virtual const char * what() const throw()
+		{  return error;}
+
+		RtException()
+		{
+		}
+
+};
+
+#endif //__RTEXCEPTION_HPP__
+
+
+
+**************************************************************************************
+**************************************************************************************
+RtCassEpcTableDao.cpp
+**************************************************************************************
+**************************************************************************************
+
+#include "RtCassEpcTableDataDao.hpp"
+#include "RtCassHeader.hpp"
+
+#ifdef IGNORE_PRINTF
+#define printf(fmt, ...) (0)
+#endif
+
+/*******************************************************************************
+ **
+ ** FUNCTION NAME: rtUpdateEpcTableDataPrepareStmt
+ **
+ *- DESCRIPTION : This API will prepare statement for rtUpdateEpcTableData
+ **
+ ** INPUT  :      
+ *
+ ** OUTPUT :
+ **
+ ** RETURN :      RtReturnCodes
+ **
+ ** AUTHOR :
+ **
+ ********************************************************************************/
+
+
+const CassPrepared* RtCassEpcTableDataDao::rtUpdateEpcTableDataPrepareStmt()
+{
+	printf ("[%s::%d] Enter PrepareStmt_rtFetchEpcTableData  \n", __FILE__,__LINE__);
+	CassError l_returnCode = CASS_OK;
+	CassStatement *l_stmt = NULL;
+
+	try
+	{
+		CassFuture *csp_future =cass_session_prepare (RtConnectionObj::rtGetSession(),RT_UPDATE_EPC_TABLE);
+		l_returnCode = cass_future_error_code (csp_future);
+		if (l_returnCode != CASS_OK)
+		{
+			printf ("[%s::%d] Error : cass_session_prepare   \n", __FILE__,__LINE__);
+			const char *message;
+			size_t message_length;
+			cass_future_error_message (csp_future, &message, &message_length);
+			fprintf (stderr, "Error: %.*s\n", (int) message_length, message);
+			cass_future_free (csp_future);
+			return nullptr;
+
+		}
+		const CassPrepared *lsc_prepared_rtUpdateEpcTableData =	cass_future_get_prepared (csp_future);
+		cass_future_free (csp_future);
+		return lsc_prepared_rtUpdateEpcTableData;
+	}                             // end of try
+	catch (RtException & ex)
+	{
+		printf ("\n Exception Caught \n");
+		return nullptr;
+		//return RT_DB_FATAL;
+	}
+
+}
+
+const CassPrepared* RtCassEpcTableDataDao::rtGetUpdateEpcTableDataPrepareStmt()
+{
+	static const CassPrepared * ls_stmt = RtCassEpcTableDataDao::rtUpdateEpcTableDataPrepareStmt();
+	return ls_stmt;
+}
+
+
+
+
+
+/*******************************************************************************
+ **
+ ** FUNCTION NAME: rtUpdateEpcTableData
+ **
+ *- DESCRIPTION : This API will update epctable
+ **
+ ** INPUT  :      
+ *
+ ** OUTPUT :
+ **
+ ** RETURN :      RtReturnCodes
+ **
+ ** AUTHOR :
+ **
+ ********************************************************************************/
+RtReturnCodes RtCassEpcTableDataDao::rtUpdateEpcTableData(RtCassEpcTableDataVo &EpcData)
+{
+	printf("\n [ %s::%d ]-->Enter rtUpdateEpcTableData()  \n",__FILE__,__LINE__);
+
+	CassError l_returnCode = CASS_OK;
+	CassStatement* l_stmt = NULL;
+	CassFuture* l_query_future = NULL;
+
+	char error_message[ERR_MSG_SIZE]={0};
+
+	try{
+		if(EpcData.m_imsi == NULL)
+		{
+			printf("\n [ %s::%d ]-->Exception Invalid IMSI \n",__FILE__,__LINE__);
+			sprintf(error_message," %d NULL INPUT FOR IMSI ",INVALID_INPUT);
+			// logging
+			return INVALID_INPUT;
+		}
+
+		auto ls_stmt = RtCassEpcTableDataDao::rtGetUpdateEpcTableDataPrepareStmt();
+		if(!ls_stmt)
+		{
+			printf("\n [ %s::%d ]-->Error in ls_stmt \n",__FILE__,__LINE__);
+			return RT_DB_FATAL;
+		}
+		l_stmt = cass_prepared_bind(ls_stmt);
+		cass_statement_set_consistency(l_stmt,WRITE_CONSISTENCY);
+
+
+		cass_statement_bind_string_by_name(l_stmt,"imsi", EpcData.m_imsi);
+
+
+		 cass_statement_bind_int64_by_name(l_stmt,"subcrttime",EpcData.m_subcrttime);
+
+		printf("\n [ %s::%d ]subcrttime-->%ld \n",__FILE__,__LINE__,EpcData.m_subcrttime);
+		CassError res;
+
+		//if(EpcData.m_imei_upd_flag)
+		//	cass_statement_bind_string_by_name(l_stmt,"imei",EpcData.m_imei);
+
+		if(EpcData.m_admin_data_upd_flag)
+			cass_statement_bind_int32_by_name(l_stmt,"admin_data_upd",EpcData.m_admin_data_upd);
+		
+		
+		if(EpcData.m_no_ofScefdata_flag)
+			cass_statement_bind_int32_by_name(l_stmt,"no_of_scef_data",EpcData.m_no_ofScefdata);
+
+		if(EpcData.m_s6T_blob_upd_flag)
+		{
+			res = cass_statement_bind_bytes_by_name (l_stmt,"rts6tdd",(const cass_byte_t*)&EpcData.m_rts6tdd,sizeof(RtCassS6TBlob));
+			if(res != CASS_OK)
+			{
+				printf("\n Problem with cass_user_type_set_bytes_by_name \n");
+				printf("%s\n", cass_error_desc(res));
+				throw RtException(res,(char *)cass_error_desc(res));
+			}
+		}
+
+		if(EpcData.m_auth_data_upd_flag)
+		{
+			res=cass_statement_bind_bytes_by_name (l_stmt,"rtauthdata",(const cass_byte_t*)&EpcData.m_rtauthdata,sizeof(RtCassAuthData));
+			if(res != CASS_OK)
+			{
+				printf("\n Problem with cass_user_type_set_bytes_by_name \n");
+				printf("%s\n", cass_error_desc(res));
+				throw RtException(res,(char *)cass_error_desc(res));
+			}
+		}
+
+		if(EpcData.m_epc_dyn_upd_flag)
+		{
+			res=cass_statement_bind_bytes_by_name (l_stmt,"rtepcdynamic",(const cass_byte_t*)&EpcData.m_rtepcdynamic,sizeof(RtCassEpcDynamic));
+			if(res != CASS_OK)
+			{
+				printf("\n Problem with cass_user_type_set_bytes_by_name \n");
+				printf("%s\n", cass_error_desc(res));
+				throw RtException(res,(char *)cass_error_desc(res));
+			}
+		}
+
+		if(EpcData.m_eps_loc_info_upd_flag)
+		{
+			res=cass_statement_bind_bytes_by_name (l_stmt,"rtepslocinfo",(const cass_byte_t*)&EpcData.m_rtepslocinfo,sizeof(RtCassEpsLocInfo));
+			if(res != CASS_OK)
+			{
+				printf("\n Problem with cass_user_type_set_bytes_by_name \n");
+				printf("%s\n", cass_error_desc(res));
+				throw RtException(res,(char *)cass_error_desc(res));
+			}
+		}
+
+		
+
+		cass_statement_set_request_timeout (l_stmt, 0);
+		l_query_future = cass_session_execute(RtConnectionObj::rtGetSession(), l_stmt);
+		char l_imsi[IMSI_SIZE];
+		memset(l_imsi,0 ,IMSI_SIZE);
+		strncpy(l_imsi , EpcData.m_imsi , IMSI_SIZE);
+		printf("\n [ %s::%d ] EpcData.m_imsi--%s-- \n",__FILE__,__LINE__,EpcData.m_imsi);
+		printf("\n [ %s::%d ] EpcData.m_imsi--%s-- \n",__FILE__,__LINE__,l_imsi);
+		
+/*		char* l_imsi = new char[IMSI_SIZE];
+		memcpy(l_imsi, EpcData.m_imsi,IMSI_SIZE);
+		*/
+
+		l_returnCode = cass_future_set_callback(l_query_future,rtUpdateSubsDataCallbackDynamic,(void *)l_imsi);
+		if(l_returnCode != CASS_OK)
+		{
+			printf("\n [ %s::%d ] Error Inside CallBack \n",__FILE__,__LINE__);
+			sprintf(error_message," %d Error Inside CallBack  ",CALLBACK_ERROR);
+			throw(CALLBACK_ERROR , error_message);
+		}
+
+
+		cass_future_free(l_query_future);
+		cass_statement_free(l_stmt);
+
+
+		return RT_DB_SUCCESS;
+	} //end of try
+
+	catch(RtException &ex)
+	{
+		printf("[%s :: %d]  EXCEPTION CAUGHT\n",__FILE__,__LINE__);
+
+		if(l_query_future != NULL)
+			cass_future_free(l_query_future);
+
+		if(l_stmt != NULL)
+			cass_statement_free(l_stmt);
+
+		return RT_DB_FATAL;
+		//throw RtException ex;
+	}
+
+	catch(...)
+	{
+		printf("[%s :: %d]  EXCEPTION CAUGHT\n",__FILE__,__LINE__);
+
+		if(l_query_future != NULL)
+			cass_future_free(l_query_future);
+
+		if(l_stmt != NULL)
+			cass_statement_free(l_stmt);
+
+		return RT_DB_FATAL;
+		//throw RtException ex;
+	}
+
+} 
+
+
+
+/*******************************************************************************
+ **
+ ** FUNCTION NAME: rtUpdateSubsDataCallbackDynamic
+ **
+ *- DESCRIPTION : Callback for rtUpdateSubsDataDynamic
+ **
+ ** INPUT  :
+ *
+ ** OUTPUT :
+ **
+ ** RETURN :
+ **
+ ** AUTHOR :
+ **
+ ********************************************************************************/
+void RtCassEpcTableDataDao::rtUpdateSubsDataCallbackDynamic(CassFuture* l_csp_future, void *data)
+{
+        printf("[%s::%d] Enter rtUpdateSubsDataCallbackDynamic  \n" , __FILE__,__LINE__);
+
+	CassError l_returnCode = cass_future_error_code(l_csp_future);
+	char *l_imsi=(char *)data;
+
+	if (l_returnCode != CASS_OK)
+	{
+		const char* error_message;
+		size_t error_message_length;
+		cass_future_error_message(l_csp_future, &error_message, &error_message_length);
+                printf("\n[%s::%d] %s ",__FILE__,__LINE__,error_message);
+        }
+        else
+        {
+                printf("\n [%s::%d] Data Updated Successfully IMSI-->%s--...\n",__FILE__,__LINE__,l_imsi);
+        }
+	/*
+	if(l_imsi != NULL)
+	{
+                printf("\n [%s::%d] Deleteing Data \n",__FILE__,__LINE__);
+		delete l_imsi;
+	}*/
+}// end of rtUpdateSubsDataCallbackDynamic
+
+
+
+
+
+/*******************************************************************************
+ **
+ ** FUNCTION NAME: rtFetchEpcTableDataPrepareStmt
+ **
+ *- DESCRIPTION : This API will prepare statement for rtFetchEpcTableData
+ **
+ ** INPUT  :      
+ *
+ ** OUTPUT :
+ **
+ ** RETURN :      RtReturnCodes
+ **
+ ** AUTHOR :
+ **
+ ********************************************************************************/
+
+const CassPrepared* RtCassEpcTableDataDao::rtFetchEpcTableDataPrepareStmt()
+{
+	printf ("[%s::%d] Enter PrepareStmt_rtFetchEpcTableData  \n", __FILE__,	__LINE__);
+	CassError l_returnCode = CASS_OK;
+	CassStatement *l_stmt = NULL;
+
+	try
+	{
+		CassFuture *csp_future =cass_session_prepare (RtConnectionObj::rtGetSession(),RT_GET_FULL_EPC_TABLE);
+		l_returnCode = cass_future_error_code (csp_future);
+		if (l_returnCode != CASS_OK)
+		{
+			printf ("[%s::%d] Error : cass_session_prepare   \n", __FILE__,__LINE__);
+			const char *message;
+			size_t message_length;
+			cass_future_error_message (csp_future, &message, &message_length);
+			fprintf (stderr, "Error: %.*s\n", (int) message_length, message);
+			cass_future_free (csp_future);
+			return nullptr;
+
+		}
+		const CassPrepared *lsc_prepared_rtFetchEpcTableData =cass_future_get_prepared(csp_future);
+		cass_future_free (csp_future);
+		return lsc_prepared_rtFetchEpcTableData;
+	}				// end of try
+	catch (RtException & ex)
+	{
+		printf ("\n Exception Caught \n");
+		return nullptr;
+		//return RT_DB_FATAL;
+	}
+
+}//end of rtFetchEpcTableDataPrepareStmt
+
+
+const CassPrepared* RtCassEpcTableDataDao::rtGetFetchEpcTableDataPrepareStmt()
+{
+	static const CassPrepared * ls_stmt = RtCassEpcTableDataDao::rtFetchEpcTableDataPrepareStmt();
+	return ls_stmt;
+}
+
+
+
+/*******************************************************************************
+ **
+ ** FUNCTION NAME: rtFetchEpcTableData
+ **
+ *- DESCRIPTION : This API will select  imsi specific subscriber Data attribute from epc_table
+ **
+ ** INPUT  :      imsi
+ *
+ ** OUTPUT :
+ **
+ ** RETURN :      RtReturnCodes
+ **
+ ** AUTHOR :
+ **
+ ********************************************************************************/
+RtReturnCodes RtCassEpcTableDataDao::rtFetchEpcTableData(RtCassEpcTableDataVo &r_epcData)
+{
+	printf("\n [ %s::%d ]-->Enter rtFetchEpcTableData()  \n",__FILE__,__LINE__);
+
+	CassError l_returnCode = CASS_OK;
+	CassStatement* l_stmt = NULL;
+	CassFuture* l_query_future = NULL;
+	int l_count = 0;
+
+	char error_message[ERR_MSG_SIZE]={0};
+
+	try{
+		if(r_epcData.m_imsi == NULL|| r_epcData.m_imsi[0]==0)
+		{
+			printf("\n [ %s::%d ]-->Exception Invalid IMSI \n",__FILE__,__LINE__);
+			sprintf(error_message," %d NULL INPUT FOR IMSI ",INVALID_INPUT);
+			// logging
+			return INVALID_INPUT;
+		}
+
+
+		auto ls_stmt = RtCassEpcTableDataDao::rtGetFetchEpcTableDataPrepareStmt();
+		if(!ls_stmt) return RT_DB_FATAL;
+		l_stmt = cass_prepared_bind(ls_stmt);
+		cass_statement_set_consistency(l_stmt,READ_CONSISTENCY);
+
+
+		cass_statement_bind_string_by_name(l_stmt,"imsi", r_epcData.m_imsi);
+
+		cass_statement_set_request_timeout (l_stmt, 0);
+		l_query_future = cass_session_execute(RtConnectionObj::rtGetSession(), l_stmt);
+
+		const CassResult* result = cass_future_get_result(l_query_future);
+	
+		if(result == NULL)
+		{
+			CassError error_code = cass_future_error_code(l_query_future);
+			const char* error_message;
+			size_t error_message_length;
+			cass_future_error_message(l_query_future, &error_message, &error_message_length);
+			throw RtException(error_code , (char *)error_message);
+		}
+		else{
+			const CassResult* result = cass_future_get_result(l_query_future);
+			if(cass_result_row_count(result) > 0)
+			{
+				l_count++;        
+				const CassRow* row = cass_result_first_row(result);
+				cass_int64_t l_subcrttime=-1;
+				const char *l_msisdn;
+				const char *l_imei;
+
+				size_t l_len[2]={0};
+
+				
+				cass_value_get_string(cass_row_get_column_by_name(row,"msisdn"),&l_msisdn,&l_len[0]);
+				cass_value_get_string(cass_row_get_column_by_name(row,"imei"),&l_imei,&l_len[1]);
+
+				if(l_len[0] != 0)
+					strncpy(r_epcData.m_msisdn,l_msisdn,l_len[0]);
+
+				if(l_len[1] != 0)
+					strncpy(r_epcData.m_imei,l_imei,l_len[1]);
+
+				cass_value_get_int32(cass_row_get_column_by_name(row,"no_of_scef_data"), &r_epcData.m_no_ofScefdata);
+				cass_value_get_int32(cass_row_get_column_by_name(row,"admin_data_upd"), &r_epcData.m_admin_data_upd);
+				cass_value_get_int32(cass_row_get_column_by_name(row,"cos_id"), &r_epcData.m_cosid);
+				cass_value_get_int32(cass_row_get_column_by_name(row,"isservedaddr"), &r_epcData.m_isservedaddr);
+				cass_value_get_int32(cass_row_get_column_by_name(row,"sub_status"),&r_epcData.m_sub_status);
+				cass_value_get_int64(cass_row_get_column_by_name(row,"subcrttime"),&l_subcrttime);
+				r_epcData.m_subcrttime=l_subcrttime; 
+				size_t blob_length[6]={0};
+
+				
+				RtCassAuthData *l_authData=NULL;
+				RtCassEpcDynamic *l_epcDynData=NULL;
+				RtCassS6TBlob *l_s6tdata=NULL;
+				RtCassEpsLocInfo  *l_epslocinfo=NULL;
+				RtCassServedAddrBlob *l_servedaddr=NULL;
+				RtExtIdPortArray *l_extIdPort=NULL;
+				CassError resRc;
+				
+
+				resRc = cass_value_get_bytes(cass_row_get_column_by_name(row, "rtauthdata"),(const cass_byte_t**)&l_authData, &blob_length[0]);
+				if(resRc != CASS_OK)
+				{
+					printf("\n NULL value fetched in rtauthdata Blob  \n");
+				}
+				if(blob_length[0] != 0)
+				{
+					memcpy(&r_epcData.m_rtauthdata,l_authData,sizeof(RtCassAuthData));
+				}
+
+
+				
+
+				resRc = cass_value_get_bytes(cass_row_get_column_by_name(row, "rtepcdynamic"),(const cass_byte_t**)&l_epcDynData, &blob_length[1]);
+				if(resRc != CASS_OK)
+				{
+					printf("\n NULL value fetched in rtepcdynamic Blob  \n");
+				}
+				if(blob_length[1] != 0)
+					memcpy(&r_epcData.m_rtepcdynamic,l_epcDynData,sizeof(RtCassEpcDynamic));
+
+
+
+
+				resRc = cass_value_get_bytes(cass_row_get_column_by_name(row, "rtepslocinfo"),(const cass_byte_t**)&l_epslocinfo, &blob_length[2]);
+				if(resRc != CASS_OK)
+				{
+					printf("\n[%s::%d] NULL value fetched in rtepslocinfo Blob  \n",__FILE__,__LINE__);
+				}
+				if(blob_length[2] != 0)
+					memcpy(&r_epcData.m_rtepslocinfo,l_epslocinfo,sizeof(RtCassEpsLocInfo));
+
+
+
+
+			resRc = cass_value_get_bytes(cass_row_get_column_by_name(row, "rts6tdd"),(const cass_byte_t**)&l_s6tdata, &blob_length[3]);
+				if(resRc != CASS_OK)
+				{
+					printf("\n NULL value fetched in rts6tdd Blob  \n");
+				}
+				if(blob_length[3] != 0)
+					memcpy(&r_epcData.m_rts6tdd,l_s6tdata,sizeof(RtCassS6TBlob));
+
+
+
+
+				resRc = cass_value_get_bytes(cass_row_get_column_by_name(row, "rtservedaddress"),(const cass_byte_t**)&l_servedaddr, &blob_length[4]);
+				if(resRc != CASS_OK)
+				{
+					printf("\n NULL value fetched in rtservedaddress Blob  \n");
+				}
+				if(blob_length[4] != 0)
+					memcpy(&r_epcData.m_rtservedaddr,l_servedaddr,sizeof(RtCassServedAddrBlob));
+
+
+
+
+				resRc = cass_value_get_bytes(cass_row_get_column_by_name(row, "extidportid"),(const cass_byte_t**)&l_extIdPort, &blob_length[5]);
+				if(resRc != CASS_OK)
+				{
+					printf("\n[%s::%d] NULL value fetched in extidportid Blob  \n",__FILE__,__LINE__);
+				}
+				if(blob_length[5] != 0)
+					memcpy(&r_epcData.m_rtservedaddr ,l_extIdPort,sizeof(RtCassServedAddrBlob)); 
+				
+			}
+		}
+
+		cass_result_free(result);
+
+
+
+		cass_future_free(l_query_future);
+		cass_statement_free(l_stmt);
+
+
+		if(l_count == 0)
+		{
+			printf("\n[%s::%d] NO ROW FETCHED \n",__FILE__,__LINE__);
+			return NO_ROW_FETCHED;
+		}
+
+		return RT_DB_SUCCESS;
+	} //end of try
+	catch(RtException &ex)
+	{
+		printf("[%s :: %d]  EXCEPTION CAUGHT\n",__FILE__,__LINE__);
+		printf("[%s :: %d]  Error Number -->%d--\n",__FILE__,__LINE__,ex.errNumber);
+		printf("[%s :: %d]  Error Message -->%s--\n",__FILE__,__LINE__,ex.errString);
+
+		if(l_query_future != NULL)
+			cass_future_free(l_query_future);
+
+		if(l_stmt != NULL)
+			cass_statement_free(l_stmt);
+
+		return RT_DB_FATAL;
+		//throw ex;
+	}
+
+	catch(...)
+	{
+		printf("[%s :: %d]  EXCEPTION CAUGHT\n",__FILE__,__LINE__);
+
+		if(l_query_future != NULL)
+			cass_future_free(l_query_future);
+
+		if(l_stmt != NULL)
+			cass_statement_free(l_stmt);
+
+		return RT_DB_FATAL;
+		//throw ex;
+	}
+
+}// end of rtFetchEpcTableData()
+
+
+
+
+
+
+************************************************************************************
+************************************************************************************
+RtGetMwdVector.cpp
+************************************************************************************
+************************************************************************************
+
+#include "RtCassMwdDataDao.hpp"
+#include "RtCassHeader.hpp"
+
+RtCassMwdDataDao::RtCassMwdDataDao()
+{
+	printf("\n ########	Constructor ##########\n");
+}
+
+
+/*******************************************************************************
+ * *
+ ** FUNCTION NAME: rtPrepareStmtInsMwdData
+ **
+ *- DESCRIPTION : This API will prepare statement for PrepareStmt_rtInsertAuthData
+ **
+ ** INPUT  :
+ *
+ ** OUTPUT :
+ **
+ ** RETURN :      RtReturnCodes
+ **
+ ** AUTHOR :
+ **
+ * *******************************************************************************/
+
+const CassPrepared* RtCassMwdDataDao::rtPrepareStmtInsMwdData()
+{
+	printf("[%s::%d] Enter rtPrepareStmtInsMwdData  \n" , __FILE__,__LINE__);
+	CassError l_returnCode = CASS_OK;
+	CassStatement* l_stmt = NULL;
+
+	try{
+
+		CassFuture* csp_future =  cass_session_prepare(RtConnectionObj::rtGetSession(),RT_INSERT_MWD);
+		l_returnCode = cass_future_error_code(csp_future);
+		if (l_returnCode != CASS_OK)
+		{
+			printf("[%s::%d] Error : cass_session_prepare   \n" , __FILE__,__LINE__);
+			const char* message;
+			size_t message_length;
+			cass_future_error_message(csp_future, &message, &message_length);
+			fprintf(stderr, "Error: %.*s\n", (int)message_length, message);
+			cass_future_free(csp_future);
+			throw(l_returnCode,message);
+
+		}
+		const CassPrepared* lsc_prepared_InsMwdData = cass_future_get_prepared(csp_future);
+		cass_future_free(csp_future);
+		return lsc_prepared_InsMwdData;
+	}// end of try
+	catch(RtException &ex)
+	{
+		printf("\n Exception Caught \n");
+		return nullptr;
+	}
+}// end of rtPrepareStmtInsMwdData
+
+
+
+const CassPrepared* RtCassMwdDataDao::rtGetPrepareStmtrtInsMwdData()
+{
+	static const CassPrepared * ls_stmt = RtCassMwdDataDao::rtPrepareStmtInsMwdData();
+	return ls_stmt;
+}
+
+ /*******************************************************************************
+  *
+  * FUNCTION NAME: rtInsMwdData
+  *
+  * DESCRIPTION : This API Inserts MWD table
+  *
+  * INPUT :
+  *
+  * OUTPUT :
+  *
+  * RETURN :  RtReturnCodes
+  *
+  * AUTHOR    :
+  *
+  *******************************************************************************/
+
+RtReturnCodes RtCassMwdDataDao::rtInsMwdData(RtCassMWDDataVo &rtMapDataVo)
+{
+	printf("\n[ %s::%d ]-->Enter rtInsMwdData()  \n",__FILE__,__LINE__);
+
+
+	CassError l_returnCode = CASS_OK;
+	CassStatement* l_stmt = NULL;
+	CassFuture* l_query_future = NULL;
+
+
+	int l_rowCount = 0;
+
+	char error_message[ERR_MSG_SIZE]={0};
+	int l_insertCount = 0;
+
+	try
+	{
+		if(rtMapDataVo.m_imsi[0] == '\0')
+		{
+			printf("\n [ %s::%d ]-->Exception Invalid Input for MSISDN \n",__FILE__,__LINE__);
+			return INVALID_INPUT;
+		}
+
+		if(rtMapDataVo.m_srvCntrAddr[0] == '\0')
+		{
+			printf("\n [ %s::%d ]-->Exception Invalid Input for MSGC \n",__FILE__,__LINE__);
+			return INVALID_INPUT;
+		}
+
+
+		auto ls_stmt = RtCassMwdDataDao::rtGetPrepareStmtrtInsMwdData();
+		if(!ls_stmt) 
+		{
+			printf("\n Error in getting Statement \n");
+			return RT_DB_FATAL;
+		}
+		l_stmt = cass_prepared_bind(ls_stmt);
+
+		cass_statement_bind_string_by_name(l_stmt,"imsi", rtMapDataVo.m_imsi);
+		cass_statement_bind_string_by_name(l_stmt,"msgc", rtMapDataVo.m_srvCntrAddr);
+		if(rtMapDataVo.m_cntrType != -1)
+			cass_statement_bind_int32_by_name(l_stmt,"ct", rtMapDataVo.m_cntrType);
+		if(rtMapDataVo.m_hPlmn[0] != '\0')
+			cass_statement_bind_string_by_name(l_stmt,"m_hPlmn", rtMapDataVo.m_hPlmn);
+		if(rtMapDataVo.m_scHost[0] != '\0')
+			cass_statement_bind_string_by_name(l_stmt,"schost", rtMapDataVo.m_scHost);
+		if(rtMapDataVo.m_scRealm[0] != '\0')
+			cass_statement_bind_string_by_name(l_stmt,"screalm", rtMapDataVo.m_scRealm);
+
+
+		cass_statement_set_request_timeout (l_stmt, 0);
+		l_query_future = cass_session_execute(RtConnectionObj::rtGetSession(), l_stmt);
+		l_returnCode = cass_future_set_callback(l_query_future,rtInsMwdDataCallback,NULL);
+
+		if(l_returnCode != CASS_OK)
+		{
+			printf("\n [ %s::%d ] Error Inside CallBack \n",__FILE__,__LINE__);
+			sprintf(error_message," %d Error Inside CallBack  ",CALLBACK_ERROR);
+			throw(CALLBACK_ERROR , error_message);
+		}
+
+		cass_future_free(l_query_future);
+		cass_statement_free(l_stmt);
+		return RT_DB_SUCCESS;
+	} //end of try
+	catch(RtException &ex)
+	{
+		printf("[%s :: %d]  EXCEPTION CAUGHT\n",__FILE__,__LINE__);
+
+		if(l_query_future != NULL)
+			cass_future_free(l_query_future);
+
+		if(l_stmt != NULL)
+			cass_statement_free(l_stmt);
+
+		return RT_DB_FATAL;
+	}
+}// end of rtInsMwdData
+		
+/*******************************************************************************
+ **
+ ** FUNCTION NAME: rtInsMwdDataCallback
+ **
+ *- DESCRIPTION : Callback for rtInsMwdData
+ **
+ ** INPUT  :
+ *
+ ** OUTPUT :
+ **
+ ** RETURN :
+ **
+ ** AUTHOR :
+ **
+ * *******************************************************************************/
+
+void RtCassMwdDataDao::rtInsMwdDataCallback(CassFuture* csp_future, void *data)
+{
+        printf("[%s::%d] Enter rtInsMwdDataCallback  \n" , __FILE__,__LINE__);
+
+        CassError l_returnCode = cass_future_error_code(csp_future);
+        if (l_returnCode != CASS_OK)
+        {
+		printf("\n[%s::%d] %s \n",__FILE__,__LINE__,cass_error_desc(l_returnCode));
+	}
+	else
+	{
+		printf("[%s::%d] Data Inserted Sucessfully   \n" , __FILE__,__LINE__);
+	}
+}// end of rtInsMwdDataCallback
+
+
+
+
+
+/*******************************************************************************
+ * *
+ ** FUNCTION NAME: rtMwdVectorPrepareStmt
+ **
+ *- DESCRIPTION : This API will prepare statement for rtGetMwdVector
+ **
+ ** INPUT  :
+ *
+ ** OUTPUT :
+ **
+ ** RETURN :      RtReturnCodes
+ **
+ ** AUTHOR :
+ **
+ * *******************************************************************************/
+
+const CassPrepared* RtCassMwdDataDao::rtMwdVectorPrepareStmt()
+{
+        printf("[%s::%d] Enter rtMwdVectorPrepareStmt  \n" , __FILE__,__LINE__);
+        CassError l_returnCode = CASS_OK;
+        CassStatement* l_stmt = NULL;
+
+        try{
+                CassFuture* csp_future =  cass_session_prepare(RtConnectionObj::rtGetSession(),RT_GET_MWD_VECTOR);
+                l_returnCode = cass_future_error_code(csp_future);
+                if (l_returnCode != CASS_OK)
+                {
+                        printf("[%s::%d] Error : cass_session_prepare   \n" , __FILE__,__LINE__);
+                        const char* message;
+                        size_t message_length;
+                        cass_future_error_message(csp_future, &message, &message_length);
+                        fprintf(stderr, "Error: %.*s\n", (int)message_length, message);
+                        cass_future_free(csp_future);
+                        return nullptr;
+
+                }
+                const CassPrepared* lsc_prepared_rtMwdVector = cass_future_get_prepared(csp_future);
+                cass_future_free(csp_future);
+                return lsc_prepared_rtMwdVector;
+        }// end of try
+        catch(RtException &ex)
+        {
+                printf("\n Exception Caught \n");
+                return nullptr;
+                //return RT_DB_FATAL;
+        }
+}// end of rtMwdVectorPrepareStmt
+
+
+const CassPrepared* RtCassMwdDataDao::rtGetMwdVectorPrepareStmt()
+{
+        static const CassPrepared * ls_stmt = RtCassMwdDataDao::rtMwdVectorPrepareStmt();
+        return ls_stmt;
+}
+
+
+/*******************************************************************************
+ *
+ * FUNCTION NAME: rtGetMwdVector
+ *
+ * DESCRIPTION : This API select MSGC , SC_HOST , SC_REALM from MWD table
+ *
+ * INPUT :   msisdn
+
+ * OUTPUT :
+ *
+ * RETURN :  RtReturnCodes
+ *
+ * AUTHOR    : 
+ *
+ *******************************************************************************/
+RtReturnCodes RtCassMwdDataDao::rtGetMwdVector(std::vector<RtCassMWDDataVo> &r_mwdVec , char *imsi)
+{
+	printf("\n [ %s::%d ]-->Enter rtGetMwdVector()  \n",__FILE__,__LINE__);
+
+	CassError l_returnCode = CASS_OK;
+	CassStatement* l_stmt = NULL;
+	CassFuture* l_query_future = NULL;
+	int l_count = 0;
+
+
+	try{
+
+		char error_message[ERR_MSG_SIZE]={0};
+		if(imsi == NULL)
+		{
+			printf("\n [ %s::%d ]-->Exception Invalid IMSI \n",__FILE__,__LINE__);
+			sprintf(error_message," %d NULL INPUT FOR IMSI ",INVALID_INPUT);
+			// logging
+			return  INVALID_INPUT;
+		}
+
+		auto ls_stmt = RtCassMwdDataDao::rtGetMwdVectorPrepareStmt();
+		if(!ls_stmt) return RT_DB_FATAL;
+		l_stmt = cass_prepared_bind(ls_stmt);
+		cass_statement_set_consistency(l_stmt,READ_CONSISTENCY);
+
+		cass_statement_bind_string_by_name(l_stmt,"imsi", imsi);
+
+		cass_statement_set_request_timeout (l_stmt, 0);
+		l_query_future = cass_session_execute(RtConnectionObj::rtGetSession(), l_stmt);
+
+		const CassResult* result = cass_future_get_result(l_query_future);
+		if(result == NULL)
+		{
+			CassError error_code = cass_future_error_code(l_query_future);
+			const char* error_message;
+			size_t error_message_length;
+			cass_future_error_message(l_query_future, &error_message, &error_message_length);
+			throw(error_code , error_message);
+		}
+		else{
+			if(cass_result_row_count(result) > 0)
+			{
+
+
+				CassIterator* l_iterator = cass_iterator_from_result(result);
+				while (cass_iterator_next(l_iterator))
+				{
+					const CassRow* row = cass_iterator_get_row(l_iterator);
+					
+					const char *l_msgc;
+					const char *l_hplmn;
+					const char *l_scHost;
+					const char *l_scRealm;
+					size_t l_len[4]={0};
+					int l_ct = 0;
+
+					cass_value_get_int32(cass_row_get_column_by_name(row,"ct"), &l_ct);
+					cass_value_get_string(cass_row_get_column_by_name(row,"msgc"), &l_msgc,&l_len[0]);
+					cass_value_get_string(cass_row_get_column_by_name(row,"hplmn"), &l_hplmn,&l_len[1]);
+					cass_value_get_string(cass_row_get_column_by_name(row,"schost"), &l_scHost,&l_len[2]);
+					cass_value_get_string(cass_row_get_column_by_name(row,"screalm"), &l_scRealm,&l_len[3]);
+
+					 RtCassMWDDataVo l_mwdob;
+					if(l_ct != 0)
+						l_mwdob.m_cntrType = l_ct;
+
+					if(l_len[0] != 0)
+						strncpy(l_mwdob.m_srvCntrAddr,l_msgc,l_len[0]);
+
+					if(l_len[1] != 0)
+						strncpy(l_mwdob.m_hPlmn,l_hplmn,l_len[1]);
+
+
+
+					if(l_len[2] != 0)
+						strncpy(l_mwdob.m_scHost,l_scHost,l_len[2]);
+
+					if(l_len[3] != 0)
+						strncpy(l_mwdob.m_scRealm,l_scRealm,l_len[3]);
+
+					r_mwdVec.push_back(l_mwdob);
+					l_count++;
+
+				}
+				cass_iterator_free(l_iterator);
+			}
+			cass_result_free(result);
+		}
+
+		cass_future_free(l_query_future);
+		cass_statement_free(l_stmt);
+		if(l_count == 0)
+		{
+			printf("\n[%s::%d] NO ROW FETCHED \n",__FILE__,__LINE__);
+			return NO_ROW_FETCHED;
+		}
+
+		return RT_DB_SUCCESS;
+	}//end of try
+	catch(RtException &ex)
+	{
+		printf("[%s :: %d]  EXCEPTION CAUGHT\n",__FILE__,__LINE__);
+
+		if(l_query_future != NULL)
+			cass_future_free(l_query_future);
+
+		if(l_stmt != NULL)
+			cass_statement_free(l_stmt);
+
+		return RT_DB_FATAL;
+		//throw ex;
+	}
+}// end of rtGetMwdVector
+
+
+/*******************************************************************************
+ * *
+ ** FUNCTION NAME: rtPrepareStmtDelMwdData
+ **
+ *- DESCRIPTION : This API will prepare statement for rtDelMwdData
+ **
+ ** INPUT  :
+ *
+ ** OUTPUT :
+ **
+ ** RETURN :      RtReturnCodes
+ **
+ ** AUTHOR :
+ **
+ * *******************************************************************************/
+
+const CassPrepared* RtCassMwdDataDao::rtPrepareStmtDelMwdData()
+{
+	printf("[%s::%d] Enter rtPrepareStmtDelMwdData  \n" , __FILE__,__LINE__);
+	CassError l_returnCode = CASS_OK;
+	CassStatement* l_stmt = NULL;
+
+	try{
+
+		CassFuture* csp_future =  cass_session_prepare(RtConnectionObj::rtGetSession(),RT_DEL_MWD);
+		l_returnCode = cass_future_error_code(csp_future);
+		if (l_returnCode != CASS_OK)
+		{
+			printf("[%s::%d] Error : cass_session_prepare   \n" , __FILE__,__LINE__);
+			const char* message;
+			size_t message_length;
+			cass_future_error_message(csp_future, &message, &message_length);
+			fprintf(stderr, "Error: %.*s\n", (int)message_length, message);
+			cass_future_free(csp_future);
+			throw(l_returnCode,message);
+
+		}
+		const CassPrepared* lsc_prepared_DelMwdData = cass_future_get_prepared(csp_future);
+		cass_future_free(csp_future);
+		return lsc_prepared_DelMwdData;
+	}// end of try
+	catch(RtException &ex)
+	{
+		printf("\n Exception Caught \n");
+		return nullptr;
+	}
+}// end of rtPrepareStmtDelMwdData
+
+
+
+const CassPrepared* RtCassMwdDataDao::rtGetPrepareStmtDelMwdData()
+{
+	static const CassPrepared * ls_stmt = RtCassMwdDataDao::rtPrepareStmtDelMwdData();
+	return ls_stmt;
+}
+
+ /*******************************************************************************
+  *
+  * FUNCTION NAME: rtDelMwdData
+  *
+  * DESCRIPTION : This API Inserts MWD table
+  *
+  * INPUT :
+  *
+  * OUTPUT :
+  *
+  * RETURN :  RtReturnCodes
+  *
+  * AUTHOR    :
+  *
+  *******************************************************************************/
+
+RtReturnCodes RtCassMwdDataDao::rtDelMwdData(char* p_imsi)
+{
+	printf("\n[ %s::%d ]-->Enter rtDelMwdData()  \n",__FILE__,__LINE__);
+
+
+	CassError l_returnCode = CASS_OK;
+	CassStatement* l_stmt = NULL;
+	CassFuture* l_query_future = NULL;
+
+
+	int l_rowCount = 0;
+
+	char error_message[ERR_MSG_SIZE]={0};
+	int l_insertCount = 0;
+
+	try
+	{
+		if(p_imsi == NULL)
+		{
+			printf("\n [ %s::%d ]-->Exception Invalid Input for IMSI \n",__FILE__,__LINE__);
+			return INVALID_INPUT;
+		}
+
+
+		auto ls_stmt = RtCassMwdDataDao::rtGetPrepareStmtDelMwdData();
+		if(!ls_stmt) 
+		{
+			printf("\n Error in getting Statement \n");
+			return RT_DB_FATAL;
+		}
+		l_stmt = cass_prepared_bind(ls_stmt);
+		cass_statement_set_consistency(l_stmt,WRITE_CONSISTENCY);
+
+		cass_statement_bind_string_by_name(l_stmt,"imsi", p_imsi);
+
+		cass_statement_set_request_timeout (l_stmt, 0);
+		l_query_future = cass_session_execute(RtConnectionObj::rtGetSession(), l_stmt);
+		l_returnCode = cass_future_set_callback(l_query_future,rtDelMwdDataCallBack,NULL);
+
+		if(l_returnCode != CASS_OK)
+		{
+			printf("\n [ %s::%d ] Error Inside CallBack \n",__FILE__,__LINE__);
+			sprintf(error_message," %d Error Inside CallBack  ",CALLBACK_ERROR);
+			throw(CALLBACK_ERROR , error_message);
+		}
+
+		cass_future_free(l_query_future);
+		cass_statement_free(l_stmt);
+		return RT_DB_SUCCESS;
+	} //end of try
+	catch(RtException &ex)
+	{
+		printf("[%s :: %d]  EXCEPTION CAUGHT\n",__FILE__,__LINE__);
+
+		if(l_query_future != NULL)
+			cass_future_free(l_query_future);
+
+		if(l_stmt != NULL)
+			cass_statement_free(l_stmt);
+
+		return RT_DB_FATAL;
+	}
+}// end of rtDelMwdData
+		
+/*******************************************************************************
+ **
+ ** FUNCTION NAME: rtDelMwdDataCallBack
+ **
+ *- DESCRIPTION : Callback for rtDelMwdData
+ **
+ ** INPUT  :
+ *
+ ** OUTPUT :
+ **
+ ** RETURN :
+ **
+ ** AUTHOR :
+ **
+ * *******************************************************************************/
+
+void RtCassMwdDataDao::rtDelMwdDataCallBack(CassFuture* csp_future, void *data)
+{
+        printf("[%s::%d] Enter rtDelMwdDataCallBack  \n" , __FILE__,__LINE__);
+
+        CassError l_returnCode = cass_future_error_code(csp_future);
+        if (l_returnCode != CASS_OK)
+        {
+		printf("\n[%s::%d] %s \n",__FILE__,__LINE__,cass_error_desc(l_returnCode));
+	}
+	else
+	{
+		printf("[%s::%d] Data Deleted Sucessfully   \n" , __FILE__,__LINE__);
+	}
+}// end of rtDelMwdDataCallBack
+
+
+
+
+
+/*******************************************************************************
+ * *
+ ** FUNCTION NAME: rtMwdVectorSinglePrepareStmt
+ **
+ *- DESCRIPTION : This API will prepare statement for rtGetMwdMsgc
+ **
+ ** INPUT  :
+ *
+ ** OUTPUT :
+ **
+ ** RETURN :      RtReturnCodes
+ **
+ ** AUTHOR :
+ **
+ * *******************************************************************************/
+
+const CassPrepared* RtCassMwdDataDao::rtMwdVectorSinglePrepareStmt()
+{
+        printf("[%s::%d] Enter rtMwdVectorSinglePrepareStmt  \n" , __FILE__,__LINE__);
+        CassError l_returnCode = CASS_OK;
+        CassStatement* l_stmt = NULL;
+
+        try{
+                CassFuture* csp_future =  cass_session_prepare(RtConnectionObj::rtGetSession(),RT_GET_MWD_MSGC);
+                l_returnCode = cass_future_error_code(csp_future);
+                if (l_returnCode != CASS_OK)
+                {
+                        printf("[%s::%d] Error : cass_session_prepare   \n" , __FILE__,__LINE__);
+                        const char* message;
+                        size_t message_length;
+                        cass_future_error_message(csp_future, &message, &message_length);
+                        fprintf(stderr, "Error: %.*s\n", (int)message_length, message);
+                        cass_future_free(csp_future);
+                        return nullptr;
+
+                }
+                const CassPrepared* lsc_prepared_rtMwdVector = cass_future_get_prepared(csp_future);
+                cass_future_free(csp_future);
+                return lsc_prepared_rtMwdVector;
+        }// end of try
+        catch(RtException &ex)
+        {
+                printf("\n Exception Caught \n");
+                return nullptr;
+                //return RT_DB_FATAL;
+        }
+}// end of rtMwdVectorSinglePrepareStmt
+
+
+const CassPrepared* RtCassMwdDataDao::rtGetMwdMsgcPrepareStmt()
+{
+        static const CassPrepared * ls_stmt = RtCassMwdDataDao::rtMwdVectorSinglePrepareStmt();
+        return ls_stmt;
+}
+
+
+/*******************************************************************************
+ *
+ * FUNCTION NAME: rtGetMwdMsgc
+ *
+ * DESCRIPTION : This API select MSGC from MWD table
+ *
+ * INPUT :   msisdn
+
+ * OUTPUT :
+ *
+ * RETURN :  RtReturnCodes
+ *
+ * AUTHOR    : 
+ *
+ *******************************************************************************/
+RtReturnCodes RtCassMwdDataDao::rtGetMwdMsgc(char* imsi ,std::vector<std::string> &m_scAddrVec)
+{
+	printf("\n [ %s::%d ]-->Enter rtGetMwdMsgc()  \n",__FILE__,__LINE__);
+
+	CassError l_returnCode = CASS_OK;
+	CassStatement* l_stmt = NULL;
+	CassFuture* l_query_future = NULL;
+	int l_count = 0;
+
+
+	try{
+
+		char error_message[ERR_MSG_SIZE]={0};
+		if(imsi == NULL)
+		{
+			printf("\n [ %s::%d ]-->Exception Invalid IMSI \n",__FILE__,__LINE__);
+			sprintf(error_message," %d NULL INPUT FOR IMSI ",INVALID_INPUT);
+			// logging
+			return  INVALID_INPUT;
+		}
+
+		auto ls_stmt = RtCassMwdDataDao::rtGetMwdMsgcPrepareStmt();
+		if(!ls_stmt) return RT_DB_FATAL;
+		l_stmt = cass_prepared_bind(ls_stmt);
+		cass_statement_set_consistency(l_stmt,READ_CONSISTENCY);
+
+
+		cass_statement_bind_string_by_name(l_stmt,"imsi", imsi);
+
+		cass_statement_set_request_timeout (l_stmt, 0);
+		l_query_future = cass_session_execute(RtConnectionObj::rtGetSession(), l_stmt);
+
+		const CassResult* result = cass_future_get_result(l_query_future);
+		if(result == NULL)
+		{
+			CassError error_code = cass_future_error_code(l_query_future);
+			const char* error_message;
+			size_t error_message_length;
+			cass_future_error_message(l_query_future, &error_message, &error_message_length);
+			throw(error_code , error_message);
+		}
+		else{
+			if(cass_result_row_count(result) > 0)
+			{
+
+
+				CassIterator* l_iterator = cass_iterator_from_result(result);
+				while (cass_iterator_next(l_iterator))
+				{
+					const CassRow* row = cass_iterator_get_row(l_iterator);
+
+					const char *l_msgc;
+					size_t l_len=0;
+
+					cass_value_get_string(cass_row_get_column_by_name(row,"msgc"), &l_msgc,&l_len);
+					if(l_len != 0)
+					{
+						char l_msgcCh[SC_SIZE]={0};
+						strncpy(l_msgcCh,l_msgc,l_len);
+						string lMsgcStr = l_msgcCh;
+						m_scAddrVec.push_back(lMsgcStr);
+					}
+
+					l_count++;
+				}
+				cass_iterator_free(l_iterator);
+			}
+			cass_result_free(result);
+		}
+
+		cass_future_free(l_query_future);
+		cass_statement_free(l_stmt);
+		if(l_count == 0)
+		{
+			printf("\n[%s::%d] NO ROW FETCHED \n",__FILE__,__LINE__);
+			return NO_ROW_FETCHED;
+		}
+
+		return RT_DB_SUCCESS;
+	}//end of try
+	catch(RtException &ex)
+	{
+		printf("[%s :: %d]  EXCEPTION CAUGHT\n",__FILE__,__LINE__);
+
+		if(l_query_future != NULL)
+			cass_future_free(l_query_future);
+
+		if(l_stmt != NULL)
+			cass_statement_free(l_stmt);
+
+		return RT_DB_FATAL;
+		//throw ex;
+	}
+}// end of rtGetMwdMsgc
