@@ -1,3 +1,299 @@
+Input.json
+{
+	"IN_HOSTNAME_1": "HOSTNAME1",
+	"IN_HOSTNAME_2": "HOSTNAME2",
+	"IN_MGT_IP_1": "MVLAN1",
+	"IN_MGT_IP_2": "MVLAN2",
+	"IN_INTERNAL_IP_1": "IVLAN1",
+	"IN_INTERNAL_IP_2": "IVLAN2",
+	"IN_DIAMETER_IP_1": "DVLAN1",
+	"IN_DIAMETER_IP_2": "DVLAN1",
+	"IN_SMPP_IP_1": "SMPPVLAN1",
+	"IN_SMPP_IP_2": "SMPPVLAN2",
+	"IN_DIAMETER_HOST_1": "DHOST1",
+	"IN_DIAMETER_HOST_2": "DHOST2",
+	"IN_DIAMETER_REALM_1": "DREALM1",
+	"IN_DIAMETER_REALM_2": "DREALM2",
+	"IN_DIAMETER_PROTO": "sctp",
+	"IN_CM_VIP": "CVIRT",
+	"IN_CM_VIP_ETH": "ETH",
+	"IN_CM_VIP_MASK_LEN": "CVIRTLEN",
+	"IN_EMS_PING_URL": "EMS_URL",
+	"IN_ENUM_QUERY_IP_ADDR": "ENUMIP",
+	"IN_ENUM_QUERY_PORT": "ENUMPRT",
+	"IN_EMS_CIRCLE_NAME": "CIRCLE",
+	"IN_Self_Server_Number": "1"
+}
+
+Inputjsonschema.hpp
+
+#ifndef __INPUT_JSON_SCHEMA__
+#define __INPUT_JSON_SCHEMA__
+
+const char h_plJsonSchema[]="{\
+																													\"$schema\": \"http://json-schema.org/draft-04/schema#\",\
+																													\"title\": \"DB Schema Scalars\",\
+																													\"description\": \"JSON schema for validating Input Json file\",\
+																													\"type\": \"object\",\
+																													\"properties\": {\
+																													\"IN_HOSTNAME_1\": { \"type\": \"string\" },\
+																													\"IN_HOSTNAME_2\": { \"type\": \"string\"},\
+																													\"IN_MGT_IP_1\": { \"type\": \"string\" },\
+																													\"IN_MGT_IP_2\": { \"type\": \"string\" },\
+																													\"IN_INTERNAL_IP_1\": { \"type\": \"string\" },\
+																													\"IN_INTERNAL_IP_2\": { \"type\": \"string\" },\
+																													\"IN_DIAMETER_IP_1\": { \"type\": \"string\" },\
+																													\"IN_DIAMETER_IP_2\": { \"type\": \"string\" },\
+																													\"IN_SMPP_IP_1\": { \"type\": \"string\" },\
+																													\"IN_SMPP_IP_2\": { \"type\": \"string\" },\
+																													\"IN_DIAMETER_HOST_1\": { \"type\": \"string\" },\
+																													\"IN_DIAMETER_HOST_2\": { \"type\": \"string\" },\
+																													\"IN_DIAMETER_REALM_1\": { \"type\": \"string\" },\
+																													\"IN_DIAMETER_REALM_2\": { \"type\": \"string\" },\
+																													\"IN_DIAMETER_PROTO\": \
+{\
+								\"type\": \"string\", \"enum\":[\
+																\"tcp\",\
+																\"sctp\"\
+																]\
+},\
+								\"IN_CM_VIP\": { \"type\": \"string\" },\
+								\"IN_CM_VIP_ETH\": { \"type\": \"string\" },\
+								\"IN_CM_VIP_MASK_LEN\": { \"type\": \"string\" },\
+								\"IN_EMS_PING_URL\": { \"type\": \"string\" },\
+								\"IN_ENUM_QUERY_IP_ADDR\": { \"type\": \"string\" },\
+								\"IN_ENUM_QUERY_PORT\": { \"type\": \"string\" },\
+								\"IN_EMS_CIRCLE_NAME\": { \"type\": \"string\" },\
+								\"IN_Self_Server_Number\": { \"type\": \"string\" },\
+								\"required\": [\
+								\"IN_HOSTNAME_1\",\
+								\"IN_HOSTNAME_2\",\
+								\"IN_MGT_IP_1\",\
+								\"IN_MGT_IP_2\",\
+								\"IN_INTERNAL_IP_1\",\
+								\"IN_INTERNAL_IP_2\",\
+								\"IN_DIAMETER_IP_1\",\
+								\"IN_DIAMETER_IP_2\",\
+								\"IN_SMPP_IP_1\",\
+								\"IN_SMPP_IP_2\",\
+								\"IN_DIAMETER_HOST_1\",\
+								\"IN_DIAMETER_HOST_2\",\
+								\"IN_DIAMETER_REALM_1\",\
+								\"IN_DIAMETER_REALM_2\",\
+								\"IN_DIAMETER_PROTO\",\
+								\"IN_CM_VIP\",\
+								\"IN_CM_VIP_ETH\",\
+								\"IN_CM_VIP_MASK_LEN\",\
+								\"IN_EMS_PING_URL\",\
+								\"IN_ENUM_QUERY_IP_ADDR\",\
+								\"IN_ENUM_QUERY_PORT\",\
+								\"IN_EMS_CIRCLE_NAME\",\
+								\"IN_Self_Server_Number\"\
+								]\
+								}}";
+
+
+#endif
+
+
+
+
+Inputjson.cpp
+#include <iostream>
+#include <rapidjson/document.h>
+#include <rapidjson/stringbuffer.h>
+#include <rapidjson/encodings.h>
+#include <rapidjson/schema.h>
+#include<vector>
+#include<string>
+#include "InputJsonSchema.hpp"
+#include<fstream>
+#include<streambuf>
+#include<map>
+
+using namespace std;
+
+const string ESG_DB_SCRIPTS_BASE_PATH =		"/home/esg/ESG_APP_INSTALL/install_data";
+const string ESG_CONF_SCHEMA_FILE 				=		"ESG_CONF_TABLE_DESC.cql";
+const string ESG_CONF_DB_SCHEMA 						=		"esg_conf";
+const string BASE_DB_DRIVER											=		"/home/esg/ESG_DB_DRIVER/";
+const string INSTALLATION_LOG									=	 "/var/log/esg/";
+const string ESG_APP_TBL_DATA_FILE				=  "ESG_DB_SCRIPTS_BASE_PATH/ESG_APP_CONFIG_TABLE_DATA.cql";
+const string ESG_APP_TRANS_TBL								=  "ESG_DB_SCRIPTS_BASE_PATH/APP_TRANSPORT_TABLE_DATA.cql";
+const string ALARM_FILTER_TBL									=  "ESG_DB_SCRIPTS_BASE_PATH/ALARM_FILTER_TABLE_DATA.cql";
+const string MANAGED_APP_TRANS_TBL				=  "ESG_DB_SCRIPTS_BASE_PATH/MANAGED_APP_TRANSPORT_TABLE_DATA.cql";
+const string ALARM_DESC_TBL											=  "ESG_DB_SCRIPTS_BASE_PATH/ALARM_DESCRIPTION_TABLE_DATA.cql";
+const string STACK_MGT_TBL												=  "ESG_DB_SCRIPTS_BASE_PATH/STACK_MANAGEMENT_TABLE_DATA.cql";
+const string ESG_FE_SCALAR_TBL								=  "ESG_DB_SCRIPTS_BASE_PATH/ESG_FE_SCALAR_DATA.cql";
+const string SYS_RES_TBL														=  "ESG_DB_SCRIPTS_BASE_PATH/SYS_RES_CONF_TABLE_DATA.cql";
+const string AGENT_SCALAR_DATA							 =  "ESG_DB_SCRIPTS_BASE_PATH/ESG_AGENT_DATA_TABLE_DATA.cql";
+const string EMS_SCALAR_TBL											=  "ESG_DB_SCRIPTS_BASE_PATH/EMS_SCALAR_DATA.cql";
+const string CM_SCALAR_TBL												=  "ESG_DB_SCRIPTS_BASE_PATH/CM_SCALER_DATA.cql";
+const string AGENT_TANS_TBL											=  "ESG_DB_SCRIPTS_BASE_PATH/AGENT_TRANSPORT_TABLE_DATA.cql";
+
+string cassandra_ip;
+
+
+int executeList(vector<string> &commandList);
+
+int main()
+{
+								vector <string> commandList;
+															string cSec_1,cSec_2,cSec_3,cSec_4;
+
+								cSec_1="sed -i \"s/";
+
+								rapidjson::Document l_schemaDoc;
+
+								l_schemaDoc.Parse(h_plJsonSchema);
+								if(l_schemaDoc.HasParseError())
+								{
+																printf("\n[%s::%d]JSON schema file is not a valid JSON file\n",__FILE__,__LINE__);
+								}
+								else
+								{
+																printf("[%s::%d]\nSchema parsing success\n",__FILE__,__LINE__);
+								}
+
+								rapidjson::SchemaDocument l_schemaDocument(l_schemaDoc);
+								rapidjson::SchemaValidator l_SchemaValidator(l_schemaDocument);
+								rapidjson::Document l_confDoc;
+
+								ifstream f("Input.json");
+
+								string input_json((std::istreambuf_iterator<char>(f)),std::istreambuf_iterator<char>());
+								l_confDoc.Parse(input_json.c_str());
+
+								if(l_confDoc.HasParseError())
+								{
+																printf("\n[%s::%d]JSON file is not a valid JSON file\n",__FILE__,__LINE__);
+								}
+								else
+								{
+																printf("\n[%s::%d]JSON file is a valid JSON file\n",__FILE__,__LINE__);
+								}
+
+       if(l_confDoc.Accept(l_SchemaValidator))
+       {
+        printf("[%s::%s::%d] --> Data Parsing success against schema \n",__FILE__,__func__,__LINE__);
+							}
+							else
+							{
+															printf("[%s::%s::%d] --> Data Parsing failed against schema \n",__FILE__,__func__,__LINE__);
+															rapidjson::StringBuffer sb;
+															l_SchemaValidator.GetInvalidSchemaPointer().StringifyUriFragment(sb);
+															printf("Invalid schema: %s\n", sb.GetString());
+															printf("Invalid keyword: %s\n", l_SchemaValidator.GetInvalidSchemaKeyword());
+															sb.Clear();
+															l_SchemaValidator.GetInvalidDocumentPointer().StringifyUriFragment(sb);
+															printf("Invalid document: %s\n", sb.GetString());
+							}
+
+
+							if(std::string(l_confDoc["IN_Self_Server_Number"].GetString())=="1")
+										{
+cassandra_ip=std::string(l_confDoc["IN_INTERNAL_IP_1"].GetString());
+system("echo \"This is the first server\";echo \"Going to set environment for ESG elements in first server\" ");
+string command= ;
+cout<<endl<<command<<endl;
+										}
+										else
+										{
+																		cassandra_ip=std::string(l_confDoc["IN_INTERNAL_IP_2"].GetString());
+										}
+}
+
+
+
+
+*****************Sample portion***************
+
+       rapidjson::SchemaDocument l_schemaDocument(l_schemaDoc);
+
+       rapidjson::SchemaValidator l_SchemaValidator(l_schemaDocument);
+
+       // Now validating the Json data file against the json schema file
+       if(m_confDataDoc.Accept(l_SchemaValidator))
+       {
+        printf("[%s::%s::%d] --> Data Parsing success against schema \n",__FILE__,__func__,__LINE__);
+        m_originHost = std::string(m_confDataDoc["StackConf"]["originHost"].GetString());
+        //fprintf(stdout,"[%s:%d]--> originHost  %s\n", __FILE__,__LINE__,m_originHost.c_str());
+
+        m_originRealm = std::string(m_confDataDoc["StackConf"]["originRealm"].GetString());
+        //fprintf(stdout,"[%s:%d]--> originRealm  %s\n", __FILE__,__LINE__,m_originRealm.c_str());
+
+        //Fetching transport
+        const rapidjson::Value& l_addressesArray = m_confDataDoc["StackConf"]["transport"]["addresses"];
+        for (rapidjson::SizeType l_itr=0;l_itr<l_addressesArray.Size() ; l_itr++)
+        {
+         addresses l_addresses;
+         const rapidjson::Value& l_ip_addressArray = l_addressesArray[l_itr]["ip_addresses"];
+         for(rapidjson::SizeType l_itrIpAddr =0;l_itrIpAddr<l_ip_addressArray.Size(); l_itrIpAddr++)
+         {
+          std::string l_ipAddr=l_ip_addressArray[l_itrIpAddr].GetString();
+          l_addresses.ip_address_list.push_back(l_ipAddr);
+          //fprintf(stdout,"[%s:%d]--> ip_address  %s\n", __FILE__,__LINE__,l_ipAddr.c_str());
+         }
+
+         l_addresses.port = l_addressesArray[l_itr]["port"].GetInt();
+         //fprintf(stdout,"[%s:%d]--> port  %d\n", __FILE__,__LINE__,l_addresses.port);
+
+         std::string l_transportType=l_addressesArray[l_itr]["transport_protocol"].GetString();
+         //fprintf(stdout,"[%s:%d]--> transport_protocol %s\n", __FILE__,__LINE__,l_transportType.c_str());
+         if(!l_transportType.compare(std::string("tcp")))
+          l_addresses.transport_protocol = DiaConfig::protocol::tcp_only;
+         else if(!l_transportType.compare(std::string("sctp")))
+          l_addresses.transport_protocol = DiaConfig::protocol::sctp_only;
+         else if(!l_transportType.compare(std::string("both")))
+          l_addresses.transport_protocol = DiaConfig::protocol::both;
+         else
+         {
+          //fprintf(stdout,"[%s:%d]--> Error in transport_protocol .. setting tcp_only\n", __FILE__,__LINE__);
+          l_addresses.transport_protocol = DiaConfig::protocol::tcp_only;
+         }
+
+         ip_addresses.push_back(l_addresses);
+
+        }
+
+        std::string l_mode(m_confDataDoc["StackConf"]["mode"].GetString());
+        //fprintf(stdout,"[%s:%d]--> mode  %s\n", __FILE__,__LINE__,l_mode.c_str());
+        if(!l_mode.compare(std::string("responder_mode")))
+         m_mode = DiaConfig::mode::responder_mode;
+        else if(!l_mode.compare(std::string("initiator_mode")))
+         m_mode = DiaConfig::mode::initiator_mode;
+        else
+        {
+         //fprintf(stdout,"[%s:%d]--> Error in mode .. setting responder_mode \n", __FILE__,__LINE__);
+         m_mode = DiaConfig::mode::responder_mode;
+        }
+
+        m_haEnabled=m_confDataDoc["StackConf"]["HAEnabled"].GetBool();
+        //fprintf(stdout,"[%s:%d]--> HA Enabled  %d\n", __FILE__,__LINE__, m_haEnabled);
+
+        std::string l_plStateManagement(m_confDataDoc["StackConf"]["plStateManagement"].GetString());
+        //fprintf(stdout,"[%s:%d]--> plStateManagement  %s\n", __FILE__,__LINE__,l_plStateManagement.c_str());
+        if(!l_plStateManagement.compare(std::string("state_aware")))
+         state_mgmt = DiaConfig::pl_state_management::state_aware;
+        else if(!l_plStateManagement.compare(std::string("no_state_aware")))
+         state_mgmt = DiaConfig::pl_state_management::no_state_aware;
+        else
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 ns1.cp-ht-9.webhostbox.net
 ns2.cp-ht-9.webhostbox.net
 
