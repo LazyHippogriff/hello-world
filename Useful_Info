@@ -1,3 +1,40 @@
+                //Contruct Notification JSON to be sent
+                rapidjson::Document l_notificationDoc;
+                rapidjson::Document::AllocatorType& l_allocator=l_notificationDoc.GetAllocator();
+                rapidjson::Value l_notificationAttribute(rapidjson::kObjectType);
+                rapidjson::Value l_notificationAttributeValue;
+
+                l_notificationDoc.SetObject();
+                //Add Notifiation Type
+                l_notificationAttributeValue.SetString(m_notificationType.c_str(),m_notificationType.size());
+                l_notificationAttribute.AddMember("Notification Type",l_notificationAttributeValue,l_allocator);
+
+                //Add Concerned object in JSON
+                l_notificationAttributeValue.SetString(m_concernedEntity.c_str(),m_concernedEntity.size());
+                l_notificationAttribute.AddMember("Concerned Entity",l_notificationAttributeValue,l_allocator);
+
+                //Add peer ip in JSON
+                l_notificationAttributeValue.SetString(m_peerIpAddrs.c_str(),m_peerIpAddrs.size());
+                l_notificationAttribute.AddMember("Peer IPs",l_notificationAttributeValue,l_allocator);
+
+                //Add Self IP in JSON
+                 l_notificationAttributeValue.SetString(m_selfIpAddrs.c_str(),m_selfIpAddrs.size());
+                 l_notificationAttribute.AddMember("Self IPs",l_notificationAttributeValue,l_allocator);
+
+                //Add notification object to document
+                l_notificationDoc.AddMember("Notification",l_notificationAttribute,l_allocator);
+
+                //Convert JSON document into string
+                std::ostringstream oss;
+                rapidjson::OStreamWrapper osw(oss);
+
+                rapidjson::PrettyWriter<rapidjson::OStreamWrapper> l_writer(osw);
+                std::string l_notifStr="";
+                l_notificationDoc.Accept(l_writer);
+                m_notificationStr=oss.str();
+
+
+
 ns1.cp-ht-9.webhostbox.net
 ns2.cp-ht-9.webhostbox.net
 
