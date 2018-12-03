@@ -1,3 +1,423 @@
+httpserver.hpp
+
+#ifndef __HTTP_SERVER_HPP__
+#define __HTTP_SERVER_HPP__
+
+#define IS_SAME(_x , _y) 0 == strncasecmp(_x , _y , sizeof(_y)-1)
+
+#include <uWS/uWS.h>
+
+namespace jio
+{
+    namespace smpp
+    {
+        namespace fcaps
+        {
+
+      enum ActionResultCode
+      {
+        SUCCESS,
+        INVALID_JSON,
+        PEER_DOES_NOT_EXIST,
+        PEER_ALREADY_EXISTS,
+        APPID_NOT_SUPPORTED,
+        ROUTE_DOES_NOT_EXIST,
+        ROUTE_ALREADY_EXISTS,
+        PEER_LINK_RESET_FAIL,
+        HA_ALREADY_ACTIVE,
+        HA_ALREADY_STANDBY,
+        INVALID_ACTION,
+        UNABLE_TO_SERVE,
+        NO_PEER_ACTIVE,
+        PEER_ACTIVE,
+        PEER_INACTIVE
+      };
+
+            class WebSocket
+            {
+                //Private Member Variables
+                static WebSocket* ms_webSocketServerInstance;
+                WebSocket(){
+                };
+                                const char *m_dynamicConfigurationRespStr[15]={
+                                        (char*)"Success",
+                                        (char*)"Failure: Invalid JSON data",
+                                        (char*)"Failure: Peer doesn't exist",
+                                        (char*)"Failure: Peer already exist",
+                                        (char*)"Failure: Application Id not supported",
+                                        (char*)"Failure: Route doesn't exist",
+                                        (char*)"Failure: Route already exist",
+                                        (char*)"Failure: Peer Link Reset Failed",
+                                        (char*)"Failure: HA state is already Active",
+                                        (char*)"Failure: HA state is already Standby",
+                                        (char *)"Failure: Invalid Action",
+                                        (char *)"Failure: Unable to serve",
+                                        (char *)"Failure: No Peer Active",
+                                        (char *)"Peer Active",
+                                        (char *)"Peer Inactive"
+                                };
+
+                ~WebSocket();
+                public:
+
+                static WebSocket* getWebSocketInstance();
+                void initWebSocketServer();
+                uWS::Hub m_wsHub;
+            };
+        }
+    }
+}
+
+
+#endif
+*****************************************************************************************************************************
+
+httpserver.cpp
+
+#include "peer/include/httpserver.hpp"
+#include "peer/include/JioSmppDynamicConf.hpp"
+#include "peer/include/JioEsgConfig.hpp"
+#include<string>
+
+using namespace std;
+
+
+template<class T> using basic_string_map = std::unordered_map<char * , T , utils::helpers::basic_string_hash , utils::helpers::basic_string_key_equal>;
+namespace jio
+{
+								namespace smpp
+								{
+																namespace fcaps
+																{
+
+																								WebSocket* WebSocket::ms_webSocketServerInstance= nullptr;
+
+
+																								WebSocket* WebSocket::getWebSocketInstance()
+																								{
+																																if(ms_webSocketServerInstance == nullptr)
+																																{
+																																								ms_webSocketServerInstance=new WebSocket();
+																																}
+																																return ms_webSocketServerInstance;
+																								}
+
+
+																								void WebSocket::initWebSocketServer()
+																								{
+																																//fprintf(stdout,"\n[%s::%d] Inside WebSocket::initWebSocketServer()\n",__FILE__,__LINE__);
+																																utils::log::logger::log(IIRLogging::logger_id_Iir_app,IIRLogging::info, "Inside WebSocket::initWebSocketServer()");
+																																try
+																																{
+																																								basic_string_map<jio::smpp::peer::SmppPeerInfo> & peerTableMap = jio::smpp::peer::SmppPeerTableMgmt::getConfigInstance()->m_peerTableIpPort;
+
+																																								//fprintf(stdout,"\nPrinting map values in the beginning\n",__FILE__,__LINE__);
+																																								utils::log::logger::log(IIRLogging::logger_id_Iir_app,IIRLogging::debug, "Printing map values in the beginning");
+																																								for(auto &v:peerTableMap)
+																																								{
+																																																//fprintf(stdout,"\n[%s::%d]peer ip address: %s, peer port: %d, peer msisdn: %s",__FILE__,__LINE__,v.second.m_peerIpAddr.c_str(),v.second.m_peerPort,v.second.m_peerMsisdn.c_str());
+																																																utils::log::logger::log(IIRLogging::logger_id_Iir_app,IIRLogging::debug, "peer ip address: ",v.second.m_peerIpAddr.c_str(),", peer port: ",v.second.m_peerPort,", peer msisdn: ",v.second.m_peerMsisdn.c_str());
+																																																if(v.second.m_peerInUse == true)
+																																																{
+																																																								//fprintf(stdout,"\nin_use: true");
+																																																								utils::log::logger::log(IIRLogging::logger_id_Iir_app,IIRLogging::debug, "in_use: true");
+																																																}
+																																																else
+																																																{
+																																																								//fprintf(stdout,"\nin_use: false");
+																																																								utils::log::logger::log(IIRLogging::logger_id_Iir_app,IIRLogging::debug, "in_use: false");
+																																																}
+
+																																																if(v.second.m_peer_type == jio::smpp::config::EsgConfig::peer_type::psap)
+																																																{
+																																																								//fprintf(stdout,"\npeer type: psap\n");
+																																																								utils::log::logger::log(IIRLogging::logger_id_Iir_app,IIRLogging::debug, "peer type: psap");
+																																																}
+																																																else
+																																																{
+																																																								//fprintf(stdout,"\npeer type: smsc\n");
+																																																								utils::log::logger::log(IIRLogging::logger_id_Iir_app,IIRLogging::debug, "peer type: smsc");
+																																																}
+
+																																								}
+
+																																								m_wsHub.onConnection([this](uWS::WebSocket<uWS::SERVER> *fa_ws, uWS::HttpRequest fa_req){
+																																																//fprintf(stdout,"\n[%s::%d] WS server received connection request from IP: %s\n",__FILE__,__LINE__,fa_ws->getAddress().address);
+																																																utils::log::logger::log(IIRLogging::logger_id_Iir_app,IIRLogging::info,"WS server received connection request from IP: ",fa_ws->getAddress().address);
+																																								});
+																																								m_wsHub.onDisconnection([this](uWS::WebSocket<uWS::SERVER> *fa_ws, int fa_code, char* fa_message, size_t fa_length){
+																																																//fprintf(stdout,"\n[%s::%d]Disconnect received for IP: %s\n",__FILE__,__LINE__,fa_ws->getAddress().address);
+																																																utils::log::logger::log(IIRLogging::logger_id_Iir_app,IIRLogging::info,"Disconnect received for IP: ",fa_ws->getAddress().address);
+																																								});
+
+																																								m_wsHub.onMessage([this](uWS::WebSocket<uWS::SERVER> *fa_ws, char *fa_message, size_t fa_length, uWS::OpCode fa_opCode){
+																																																//fprintf(stdout,"\n[%s::%d]WS server received message: %s\n",__FILE__,__LINE__,fa_message);
+																																																utils::log::logger::log(IIRLogging::logger_id_Iir_app,IIRLogging::info,"WS server received message: ",fa_message);
+																																								});
+
+																																								//Register callback to be executed upon receving HTTP Request
+																																								m_wsHub.onHttpRequest([this](uWS::HttpResponse *fa_response, uWS::HttpRequest fa_request, char* fa_fcapsActionData, size_t fa_length, size_t fa_remainingBytes){
+
+																																																//fprintf(stdout,"\n[%s::%d]WS server received HTTP request\n",__FILE__,__LINE__);
+																																																utils::log::logger::log(IIRLogging::logger_id_Iir_app,IIRLogging::info,"WS server received HTTP request");
+
+																																																ActionResultCode l_actionResultCode;
+																																																bool l_exitAfterSendingResponse=false;
+																																																std::string l_actionResponseStr;
+
+																																																//Extract action from URL
+																																																//fprintf(stdout,"\n[%s::%d]Extracting action from the URL\n",__FILE__,__LINE__);
+																																																utils::log::logger::log(IIRLogging::logger_id_Iir_app,IIRLogging::debug,"Extracting action from the URL");
+																																																//fprintf(stdout,"\n[%s::%d]URL value length: %d, URL key length\n",__FILE__,__LINE__,fa_request.getUrl().valueLength,fa_request.getUrl().keyLength);
+																																																utils::log::logger::log(IIRLogging::logger_id_Iir_app,IIRLogging::debug,"URL value length: ",fa_request.getUrl().valueLength,", URL key length: ",fa_request.getUrl().keyLength);
+																																																char* l_fcapsAction=nullptr;
+																																																l_fcapsAction=strtok((char *)fa_request.getUrl().value,"=");
+																																																l_fcapsAction=strtok(NULL,"=");
+																																																if(l_fcapsAction != NULL){
+																																																								//fprintf(stdout,"\n[%s::%d] Action to be performed: %s\n",__FILE__,__LINE__,l_fcapsAction);
+																																																								utils::log::logger::log(IIRLogging::logger_id_Iir_app,IIRLogging::debug,"Action to be performed: ",l_fcapsAction);
+																																																								bool l_readOnlyAction=false;
+																																																								string l_fcapsActionData;
+																																																								if(fa_fcapsActionData != NULL)
+																																																								{
+																																																																string l_temp(fa_fcapsActionData,fa_length);
+																																																																l_fcapsActionData=l_temp;
+																																																																utils::log::logger::log(IIRLogging::logger_id_Iir_app,IIRLogging::debug,"Action Data: ",l_fcapsActionData.c_str());
+																																																																//fprintf(stdout,"\n[%s::%d] Action Data: %s\n",__FILE__,__LINE__,l_fcapsActionData.c_str());
+																																																								}
+
+																																																								RJFcapsStaus l_retCode;
+																																																								//Perform corresponding action
+																																																								basic_string_map<jio::smpp::peer::SmppPeerInfo> & peerTableMap = jio::smpp::peer::SmppPeerTableMgmt::getConfigInstance()->m_peerTableIpPort;
+																																																								if (IS_SAME(l_fcapsAction,"viewallpeers")){
+																																																																//Call View All Peers API
+																																																																l_readOnlyAction=true;
+																																																																l_retCode=RtPeerMgmt::viewPeers(l_fcapsActionData);
+																																																																if(l_retCode==RJFcapsStaus::RJ_SUCCESS)
+																																																																{
+																																																																								l_actionResultCode=ActionResultCode::SUCCESS;
+																																																																								l_actionResponseStr=l_fcapsActionData;
+																																																																}
+
+																																																																if(l_retCode==RJFcapsStaus::RJ_EXCEPTION)
+																																																																								l_actionResultCode=ActionResultCode::UNABLE_TO_SERVE;
+
+																																																								}
+
+																																																								else if(IS_SAME(l_fcapsAction,"addpeer")){
+																																																																//Call Add Peer API
+																																																																l_retCode=RtPeerMgmt::addPeer(l_fcapsActionData.c_str());
+																																																																if(l_retCode==RJFcapsStaus::RJ_SUCCESS)
+																																																																								l_actionResultCode=ActionResultCode::SUCCESS;
+
+																																																																if(l_retCode==RJFcapsStaus::RJ_EXCEPTION)
+																																																																								l_actionResultCode=ActionResultCode::UNABLE_TO_SERVE;
+
+																																																																if(l_retCode==RJFcapsStaus::RJ_PEER_ALREADY_EXISTS)
+																																																																								l_actionResultCode=ActionResultCode::PEER_ALREADY_EXISTS;
+
+																																																																if(l_retCode==RJFcapsStaus::RJ_INVALID_JSON)
+																																																																								l_actionResultCode=ActionResultCode::INVALID_JSON;
+
+																																																																//fprintf(stdout,"\nPrinting map values\n",__FILE__,__LINE__);
+																																																																utils::log::logger::log(IIRLogging::logger_id_Iir_app,IIRLogging::debug,"Printing map values: ");
+																																																																for(auto &v:peerTableMap)
+																																																																{
+																																																																								//																																																																								//fprintf(stdout,"\n[%s::%d]peer ip address: %s, peer port: %d, peer msisdn: %s",__FILE__,__LINE__,v.second.m_peerIpAddr.c_str(),v.second.m_peerPort,v.second.m_peerMsisdn.c_str());
+																																																																								utils::log::logger::log(IIRLogging::logger_id_Iir_app,IIRLogging::debug,"peer ip address: ",v.second.m_peerIpAddr.c_str(),", peer port: ",v.second.m_peerPort,", peer msisdn: ",v.second.m_peerMsisdn.c_str());
+																																																																								if(v.second.m_peerInUse == true)
+																																																																								{
+																																																																																//																																																																															//fprintf(stdout,"\nin_use: true");
+																																																																																utils::log::logger::log(IIRLogging::logger_id_Iir_app,IIRLogging::debug,"in_use: true");
+																																																																								}
+																																																																								else
+																																																																								{
+																																																																																//																																																																															//fprintf(stdout,"\nin_use: false");
+																																																																																utils::log::logger::log(IIRLogging::logger_id_Iir_app,IIRLogging::debug,"in_use: false");
+																																																																								}
+																																																																								if(v.second.m_peer_type == jio::smpp::config::EsgConfig::peer_type::psap)
+																																																																								{
+																																																																																//																																																																															//fprintf(stdout,"\npeer type: psap\n");
+																																																																																utils::log::logger::log(IIRLogging::logger_id_Iir_app,IIRLogging::debug,"peer type: psap");
+																																																																								}
+																																																																								else
+																																																																								{
+																																																																																//																																																																															fprintf(stdout,"\npeer type: smsc\n");
+																																																																																utils::log::logger::log(IIRLogging::logger_id_Iir_app,IIRLogging::debug,"peer type: psap");
+																																																																								}
+
+																																																																}
+
+
+																																																								}
+																																																								else if(IS_SAME(l_fcapsAction,"delpeer")){
+																																																																//Call Delete Peer API
+																																																																l_retCode=RtPeerMgmt::delPeer(l_fcapsActionData.c_str());
+																																																																if(l_retCode==RJFcapsStaus::RJ_SUCCESS)
+																																																																								l_actionResultCode=ActionResultCode::SUCCESS;
+
+																																																																if(l_retCode==RJFcapsStaus::RJ_EXCEPTION)
+																																																																								l_actionResultCode=ActionResultCode::UNABLE_TO_SERVE;
+
+																																																																if(l_retCode==RJFcapsStaus::RJ_INVALID_JSON)
+																																																																								l_actionResultCode=ActionResultCode::INVALID_JSON;
+
+																																																																if(l_retCode==RJFcapsStaus::RJ_PEER_NOT_IN_USE)
+																																																																								l_actionResultCode=ActionResultCode::PEER_INACTIVE;
+
+																																																																//																																																																fprintf(stdout,"\nPrinting map values\n",__FILE__,__LINE__);
+																																																																utils::log::logger::log(IIRLogging::logger_id_Iir_app,IIRLogging::debug,"Printing map values");
+																																																																for(auto &v:peerTableMap)
+																																																																{
+																																																																								//fprintf(stdout,"\n[%s::%d]peer ip address: %s, peer port: %d, peer msisdn: %s",__FILE__,__LINE__,v.second.m_peerIpAddr.c_str(),v.second.m_peerPort,v.second.m_peerMsisdn.c_str());
+																																																																								utils::log::logger::log(IIRLogging::logger_id_Iir_app,IIRLogging::debug,"peer ip address: ",v.second.m_peerIpAddr.c_str(),", peer port: ",v.second.m_peerPort,", peer msisdn: ",v.second.m_peerMsisdn.c_str());
+																																																																								if(v.second.m_peerInUse == true)
+																																																																								{
+																																																																																//                                                                               fprintf(stdout,"\nin_use: true");
+																																																																																utils::log::logger::log(IIRLogging::logger_id_Iir_app,IIRLogging::debug,"in_use: true");
+																																																																								}
+																																																																								else
+																																																																								{
+																																																																																//                                                                               fprintf(stdout,"\nin_use: false");
+																																																																																utils::log::logger::log(IIRLogging::logger_id_Iir_app,IIRLogging::debug,"in_use: false");
+																																																																								}
+																																																																								if(v.second.m_peer_type == jio::smpp::config::EsgConfig::peer_type::psap)
+																																																																								{
+																																																																																//                                                                               fprintf(stdout,"\npeer type: psap\n");
+																																																																																utils::log::logger::log(IIRLogging::logger_id_Iir_app,IIRLogging::debug,"peer type: psap");
+																																																																								}
+																																																																								else
+																																																																								{
+																																																																																//                                                                               fprintf(stdout,"\npeer type: smsc\n");
+																																																																																utils::log::logger::log(IIRLogging::logger_id_Iir_app,IIRLogging::debug,"peer type: smsc");
+																																																																								}
+
+
+																																																																}
+
+																																																								}
+																																																								else if(IS_SAME(l_fcapsAction,"changetimer")){
+																																																																//Call Change Timer API
+																																																																l_retCode=RtPeerMgmt::changeTimers(l_fcapsActionData);
+																																																																if(l_retCode==RJFcapsStaus::RJ_SUCCESS)
+																																																																								l_actionResultCode=ActionResultCode::SUCCESS;
+
+																																																																if(l_retCode==RJFcapsStaus::RJ_EXCEPTION)
+																																																																								l_actionResultCode=ActionResultCode::UNABLE_TO_SERVE;
+
+																																																																if(l_retCode==RJFcapsStaus::RJ_INVALID_JSON)
+																																																																								l_actionResultCode=ActionResultCode::INVALID_JSON;
+
+																																																																if(l_retCode==RJFcapsStaus::RJ_INVALID_VALUE)
+																																																																								l_actionResultCode=ActionResultCode::INVALID_ACTION;
+																																																								}
+
+																																																								else{
+																																																								//								fprintf(stdout,"\n[%s::%d]Invalid Action. Return Error String\n",__FILE__,__LINE__);
+																																																								utils::log::logger::log(IIRLogging::logger_id_Iir_app,IIRLogging::warning,"Invalid Action. Return Error String");
+																																																																l_actionResultCode=ActionResultCode::INVALID_ACTION;
+																																																								}
+																																																								if(l_readOnlyAction){
+																																																																//Set Response string according to action result code if Peer/Route Info retrieval wasn't SUCCESS
+																																																																if(l_actionResultCode != ActionResultCode::SUCCESS)
+																																																																								l_actionResponseStr=m_dynamicConfigurationRespStr[l_actionResultCode];
+																																																								}
+																																																								else{
+																																																																l_actionResponseStr=m_dynamicConfigurationRespStr[l_actionResultCode];
+																																																								}
+
+																																																}
+																																																else{
+																																																								//																																																								fprintf(stdout,"\n[%s::%d]No Action received. Return Error String\n",__FILE__,__LINE__);
+																																																								utils::log::logger::log(IIRLogging::logger_id_Iir_app,IIRLogging::warning,"No Action received. Return Error String");
+																																																								l_actionResultCode=ActionResultCode::INVALID_ACTION;
+																																																								l_actionResponseStr=m_dynamicConfigurationRespStr[l_actionResultCode];
+																																																}
+
+																																																//Frame header according to Action Result code
+																																																string l_httpStatusCode, l_httpHeader;
+
+																																																switch(l_actionResultCode){
+																																																								case ActionResultCode::SUCCESS: l_httpStatusCode="HTTP/1.1 200 OK";
+																																																																																								break;
+																																																								case ActionResultCode::UNABLE_TO_SERVE: l_httpStatusCode="HTTP/1.1 500 Internal Server Error";
+																																																																																																break;
+																																																								default: l_httpStatusCode="HTTP/1.1 400 Bad Request";
+																																																}
+
+																																																l_httpHeader=l_httpStatusCode+"\r\nContent-Length:" +std::to_string(l_actionResponseStr.size())+ "\r\n\r\n";
+																																																//Write header in response
+																																																fa_response->write(l_httpHeader.c_str(),l_httpHeader.size());
+																																																//Send response
+																																																fa_response->end(l_actionResponseStr.c_str(),l_actionResponseStr.size());
+
+																																																//																																																fprintf(stdout,"\n[%s::%d] Response sent: %s\n",__FILE__,__LINE__,l_actionResponseStr.c_str());
+
+																																																utils::log::logger::log(IIRLogging::logger_id_Iir_app,IIRLogging::info,"Response sent: ",l_actionResponseStr.c_str());
+
+
+																																								});
+
+																																								//																																							fprintf(stdout,"\n[%s::%d]Going to start Websocket server\n",__FILE__,__LINE__);
+
+																																								utils::log::logger::log(IIRLogging::logger_id_Iir_app,IIRLogging::info,"Going to start Websocket server");
+
+																																								auto l_esgConfig=jio::smpp::config::EsgConfig::getConfigInstance();
+
+																																								//Create SSL context
+																																								if(l_esgConfig->m_serverCertificatePath.size())
+																																								{
+																																																//																																																fprintf(stdout,"\n[%s::%d]SSL will be used. SSL cert path: %s, SSL key path: %s, SSL private key's encryption key: %s\n",__FILE__,__LINE__,l_esgConfig->m_serverCertificatePath.c_str(),l_esgConfig->m_serverKeyPath.c_str(),l_esgConfig->m_encryptionKey.c_str());
+
+
+																																																utils::log::logger::log(IIRLogging::logger_id_Iir_app,IIRLogging::debug,"SSL will be used. SSL cert path: ",l_esgConfig->m_serverCertificatePath.c_str(),"SSL key path: ", l_esgConfig->m_serverKeyPath.c_str(),"SSL private key's encryption key: ",l_esgConfig->m_encryptionKey.c_str());
+																																																uS::TLS::Context l_context = uS::TLS::createContext(l_esgConfig->m_serverCertificatePath.c_str(),l_esgConfig->m_serverKeyPath.c_str(),l_esgConfig->m_encryptionKey.c_str());
+
+																																																if(m_wsHub.listen(l_esgConfig->m_httpServerIPAddr.c_str(),l_esgConfig->m_httpServerPort,l_context))
+																																																{
+																																																								//																																																								fprintf(stdout,"\nStarting Websocket server with SSL\n",__FILE__,__LINE__);
+																																																								utils::log::logger::log(IIRLogging::logger_id_Iir_app,IIRLogging::info,"Starting Websocket server with SSL");
+																																																								m_wsHub.run();
+																																																}
+																																								}
+																																								else
+																																								{
+																																																//																																																fprintf(stdout,"\n[%s::%d]SSL will not be used.\n",__FILE__,__LINE__);
+																																																utils::log::logger::log(IIRLogging::logger_id_Iir_app,IIRLogging::info,"SSL will not be used.");
+
+																																																if(m_wsHub.listen(l_esgConfig->m_httpServerIPAddr.c_str(),l_esgConfig->m_httpServerPort))
+																																																{
+																																																								//																																																								fprintf(stdout,"\n[%s::%d]Starting Websocket server without SSL\n",__FILE__,__LINE__);
+																																																								utils::log::logger::log(IIRLogging::logger_id_Iir_app,IIRLogging::info,"Starting Websocket server without SSL.");
+																																																								m_wsHub.run();
+																																																}
+																																								}
+																																}
+																																catch(...)
+																																{
+																																								//																																								fprintf(stdout,"\n[%s::%d] Error in initialising fcaps server. Exiting\n",__FILE__,__LINE__);
+																																								utils::log::logger::log(IIRLogging::logger_id_Iir_app,IIRLogging::fatal,"Error in initialising fcaps server. Exiting");
+																																								exit(-1);
+																																}
+																								}
+																}
+								}
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 ns1.cp-ht-9.webhostbox.net
