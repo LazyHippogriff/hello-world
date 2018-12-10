@@ -1,42 +1,4 @@
 
-Cassandra backup script
-
-#!/bin/sh
-echo "This script will take a backup of all the tables of the given keyspace along with the keyspace schema."
-echo "The script will save the backup at the directory path provided in the input arguments."
-
-if [ "$#" -ne 3 ]; then
-  echo "Usage: $0 IP_ADDRESS KEYSPACE_NAME BACKUP_DIRECTORY"
-  exit 1
-fi
-
-IP_ADDRESS=$1
-KEYSPACE_NAME=$2
-BACKUP_DIRECTORY=$3
-
-$(cqlsh $IP_ADDRESS -e "desc $KEYSPACE_NAME;" > $BACKUP_DIRECTORY/$KEYSPACE_NAME.schema)
-
-for i in $(cqlsh $IP_ADDRESS -e "use $KEYSPACE_NAME; desc tables"); do
-$(cqlsh $IP_ADDRESS -e "copy $KEYSPACE_NAME.$i to '$BACKUP_DIRECTORY/$KEYSPACE_NAME.$i'")
-done
-
-
-#!/bin/sh
-echo "This script will upload the data into the respectvie tables"
-
-if [ "$#" -ne 3 ]; then
-  echo "Usage: $0 IP_ADDRESS KEYSPACE_NAME BACKUP_DIRECTORY"
-  exit 1
-fi
-
-IP_ADDRESS=$1
-KEYSPACE_NAME=$2
-BACKUP_DIRECTORY=$3
-
-for i in $(ls $BACKUP_DIRECTORY); do
-$(cqlsh $IP_ADDRESS -e "copy $i from '$BACKUP_DIRECTORY/$i'")
-done
-
 
 
 ns1.cp-ht-9.webhostbox.net
