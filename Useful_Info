@@ -1,18 +1,3 @@
-1. Add_Peer=curl -i --data '{"peerMsisdn":"8828020371","peer_type":"smsc","circle":"405861","peerIpAddr":"172.16.129.140","peerPort":4998,"systemId":"airtel","password": "airtel@123","adminState": "disabled"}' http://172.16.128.130:14050/action=addpeer
-
-2. Del_Peer=curl -i --data '{"peerIpAddr": "172.16.129.140","peerPort": 4998}' http://172.16.128.130:14050/action=delpeer
-
-3. view_all_peers = curl -i http://172.16.128.130:14050/action=viewallpeers
-
-4. Change sendEnquireLinkOnIdleTrafficeTimeOut = curl -i --data '{"sendEnquireLinkOnIdleTrafficeTimeOut":2929}' http://172.16.128.130:14050/action=changetimer
-
-4. Change enquireLinkRespTimeout = curl -i --data '{"enquireLinkRespTimeout":2929}' http://172.16.128.130:14050/action=changetimer
-
-5. Change user_data_answer_timer_out = curl -i --data '{"userDataAnswerTimeOut":2929}' http://172.16.128.130:14050/action=changetimer
-
-6. Change session_time_out= curl -i --data '{"sessionTimeOut":2929}' http://172.16.128.130:14050/action=changetimer
-
-
 
 
 
