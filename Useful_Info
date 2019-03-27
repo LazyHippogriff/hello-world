@@ -1,3 +1,339 @@
+HIREDIS SAMPLE CODE
+
+#include <stdio.h>
+
+#include <stdlib.h>
+
+#include <string.h>
+
+#include<unistd.h>
+
+#include <hircluster.h>
+
+#include<iostream>
+
+using namespace std;
+
+
+int main(int argc, char **argv) 
+{
+
+
+struct timeval timeout = { 1, 500000 }; // 1.5 seconds
+
+redisClusterContext *cc = redisClusterContextInit();
+
+redisClusterSetOptionAddNodes(cc, "172.16.129.68:6380");
+
+redisClusterSetOptionConnectTimeout(cc, timeout);
+
+redisClusterSetOptionRouteUseSlots(cc);
+
+redisClusterConnect2(cc);
+
+if (cc != NULL && cc->err) 
+{
+    
+printf("Error: %s\n", cc->errstr);
+    // handle error
+
+exit(-1);
+
+}
+
+
+
+
+/*
+
+//To print all the master nodes
+
+print_cluster_node_list(cc);
+
+*/
+
+
+
+
+/*
+
+//Finding hash slot of the key
+
+unsigned int key_slot=keyHashSlot("temp", 4);
+
+cout<<"Key slot for temp: "<<key_slot<<endl;
+    
+
+redisReply *reply;
+	
+reply = (redisReply*)(redisClusterCommand(cc,"cluster nodes"));
+	
+if (cc != NULL && cc->err) 
+		
+printf("Error: %s\n", cc->errstr);
+	
+else
+		
+printf("cluster nodes: %s\n", reply->str);
+	
+freeReplyObject(reply);
+*/
+
+
+
+/*
+
+// Set a hash map
+    
+redisReply *reply;
+	
+reply = (redisReply*)(redisClusterCommand(cc,"hmset test_hash bin1_name bin1_value bin2_name bin2_value bin3_name bin3_val"));
+	
+if (cc != NULL && cc->err) 
+		
+printf("Error: %s\n", cc->errstr);
+	
+else
+		
+printf("Status: %s\n", reply->str);
+	
+freeReplyObject(reply);
+
+*/
+
+
+
+/*
+
+// Get the complete hash map
+    
+redisReply *reply;
+	
+reply = (redisReply*)(redisClusterCommand(cc,"hgetall test_hash"));
+	
+if (cc != NULL && cc->err) 
+		
+printf("Error: %s\n", cc->errstr);
+	
+else
+
+{
+	
+cout<<endl<<"reply type: "<<reply->type<<endl;
+	
+if (reply->type == REDIS_REPLY_ARRAY) 
+{
+		
+for (int j = 0; j < reply->elements; j++) 
+{
+			
+printf("%u) %s\n", j, reply->element[j]->str);
+		
+}
+	
+}
+
+}
+	
+freeReplyObject(reply);
+
+*/
+
+
+
+
+//Get specific bins of hash map
+
+
+redisReply *reply;
+
+reply = (redisReply*)(redisClusterCommand(cc,"hmget test_hash bin1_name bin3_name"));
+
+if (cc != NULL && cc->err)
+	
+printf("Error: %s\n", cc->errstr);
+	
+else
+
+{
+	
+cout<<endl<<"reply type: "<<reply->type<<endl;
+	
+if (reply->type == REDIS_REPLY_ARRAY) 
+{
+		
+for (int j = 0; j < reply->elements; j++) 
+{
+			
+printf("%u) %s\n", j, reply->element[j]->str);
+		
+}
+	
+}
+
+}
+
+freeReplyObject(reply);
+
+
+
+
+
+/*
+    
+// PING server //
+    
+while(1)
+
+{
+	
+reply = (redisReply*)(redisClusterCommand(cc,"PING"));
+	
+if (cc != NULL && cc->err) 
+		
+printf("Error: %s\n", cc->errstr);
+	
+else
+		
+printf("PING: %s\n", reply->str);
+	
+freeReplyObject(reply);
+
+}
+
+*/
+
+
+/*    
+// GET key //
+    
+while(1)
+
+{
+
+sleep(3);
+	
+reply = (redisReply*)(redisClusterCommand(cc,"GET foo"));
+	
+if (cc != NULL && cc->err) 
+		
+printf("Error: %s\n", cc->errstr);
+	
+else
+		
+printf("GET foo: %s\n", reply->str);
+	
+freeReplyObject(reply);
+
+}
+
+*/
+
+
+/*
+    
+// Set a key //
+    
+reply = (redisReply*)(redisClusterCommand(cc,"SET %s %s", "foo", "hello vishal"));
+
+if(cc->err) 
+    
+printf("\n[%s::%d]Error: %s\n", __FILE__,__LINE__,cc->errstr);
+
+else
+    
+printf("SET: %s\n", reply->str);
+    
+freeReplyObject(reply);
+
+*/
+
+
+/*
+    
+// Set a key using binary safe API //
+    
+reply = (redisReply*)redisClusterCommand(cc,"SET %b %b", "bar", (size_t) 3, "hello", (size_t) 5);
+    
+printf("SET (binary API): %s\n", reply->str);
+    
+freeReplyObject(reply);
+
+    
+
+// Try a GET and two INCR //
+    
+reply = (redisReply*)redisClusterCommand(cc,"GET foo");
+    
+printf("GET foo: %s\n", reply->str);
+    
+freeReplyObject(reply);
+
+    
+reply = (redisReply*)redisClusterCommand(cc,"INCR counter");
+    
+printf("INCR counter: %lld\n", reply->integer);
+    
+freeReplyObject(reply);
+    
+// again ... //
+    
+reply = (redisReply*)redisClusterCommand(cc,"INCR counter");
+    
+printf("INCR counter: %lld\n", reply->integer);
+    
+freeReplyObject(reply);
+
+    
+// Create a list of numbers, from 0 to 9 //
+    
+reply = (redisReply*)redisClusterCommand(cc,"DEL mylist");
+    
+freeReplyObject(reply);
+    
+for (j = 0; j < 10; j++) 
+{
+        
+char buf[64];
+
+        
+snprintf(buf,64,"%d",j);
+        
+reply = (redisReply*)redisClusterCommand(cc,"LPUSH mylist element-%s", buf);
+
+        freeReplyObject(reply);
+
+    }
+
+    
+// Let's check what we have inside the list //
+    
+reply = (redisReply*)redisClusterCommand(cc,"LRANGE mylist 0 -1");
+    
+if (reply->type == REDIS_REPLY_ARRAY) 
+{
+        
+for (j = 0; j < reply->elements; j++) 
+{
+            
+printf("%u) %s\n", j, reply->element[j]->str);
+
+        }
+
+    }
+    
+freeReplyObject(reply);
+
+*/
+    
+// Disconnects and frees the context //
+    
+redisClusterFree(cc);
+
+
+    return 0;
+
+}
 
 
 
