@@ -1,3 +1,58 @@
+techgig 1
+#include<iostream>
+#include<vector>
+#include<algorithm>
+using std::cout;
+using std::vector;
+using std::string;
+using std::cin;
+using std::endl;
+int main()
+{
+        int t,n;
+vector<string> win_flag;
+vector<int>s_v,s_p;
+        cin>>t;
+        for(int i=0;i<t;i++)
+        {
+                cin>>n;
+                for(int j=0;j<n;j++)
+                {
+                        int temp;
+                        cin>>temp;
+                        s_v.push_back(temp);
+                }
+                for(int j=0;j<n;j++)
+                {
+                        int temp;
+                        cin>>temp;
+                        s_p.push_back(temp);
+
+                }
+                sort(s_v.begin(), s_v.end());
+                sort(s_p.begin(), s_p.end());
+                int l_count=0;
+                for(int i=0;i<n;i++)
+                {
+                        if(s_v[i]>s_p[i])
+                        {
+                                l_count=-1;
+                                win_flag.push_back("LOSE");
+                                break;
+                        }
+                }
+                if(l_count==0)
+                        win_flag.push_back("WIN");
+        }
+for(auto&x:win_flag)
+cout<<x<<endl;
+        return 0;
+}
+
+
+
+
+
 HIREDIS SAMPLE CODE
 
 #include <stdio.h>
