@@ -1,6 +1,4 @@
 techgig 2
-
-[vishal_devel@localhost techgig]$ cat main.cpp
 #include<iostream>
 #include<vector>
 #include<map>
@@ -13,154 +11,179 @@ return (a>b?a:b);
 
 int main()
 {
-                                int64_t T;
-                                cin>>T;
-                                vector<string>result;
+        int64_t T;
+        cin>>T;
+        vector<string>result;
 
-                                for(int t=0;t<T;++t)
+        for(int t=0;t<T;++t)
+        {
+                int64_t N;
+                cin>>N;
+
+                map<int,vector<int> >included_map,excluded_map;
+                vector<int64_t>included_sum,excluded_sum;
+
+                bool firstNonZeroFlag=false;
+                vector<int>ticket;
+                for(int n=0;n<N;++n)
+                {
+                        int temp;
+                        cin>>temp;
+
+                        //This ensures that our vector's first element will be non zero
+                        if(firstNonZeroFlag==false && temp !=0)
+                        {
+                                firstNonZeroFlag=true;
+                        }
+
+                        if(firstNonZeroFlag)
+                                ticket.push_back(temp);
+                }
+
+                //If all inputs are zero(added for extra safety although not required)
+                if(firstNonZeroFlag==false)
+                {
+                        result.push_back(to_string(0));
+                        continue;
+                }
+
+                included_sum.push_back(ticket[0]);
+                excluded_sum.push_back(-1001);
+                {
+                        vector<int>temp;
+                        temp.push_back(ticket[0]);
+                        included_map[0]=temp;
+                }
+                for(int n=1;n<N;++n)
+                {
+                        int64_t includedSum,excludedSum;
+
+                        if(ticket[n]!=0)
+                        {
+                                includedSum=maxSum(ticket[n], ticket[n]+excluded_sum[n-1]);
+                                included_sum.push_back(includedSum);
+                                if(includedSum==ticket[n])
                                 {
-                                                                int64_t N;
-                                                                cin>>N;
-
-                                                                map<int,vector<int> >included_map,excluded_map;
-                                                                vector<int64_t>included_sum,excluded_sum;
-
-                                                                bool firstNonZeroFlag=false;
-                                                                vector<int>ticket;
-                                                                for(int n=0;n<N;++n)
-                                                                {
-                                                                                                int temp;
-                                                                                                cin>>temp;
-
-                                                                                                //This ensures that our vector's first element will be non zero
-                                                                                                if(firstNonZeroFlag==false && temp !=0)
-                                                                                                {
-                                                                                                                                firstNonZeroFlag=true;
-                                                                                                }
-
-                                                                                                if(firstNonZeroFlag)
-                                                                                                                                ticket.push_back(temp);
-                                                                }
-
-                                                                //If all inputs are zero(added for extra safety although not required)
-                                                                if(firstNonZeroFlag==false)
-                                                                {
-                                                                                                result.push_back(to_string(0));
-                                                                                                continue;
-                                                                }
-
-                                                                included_sum.push_back(ticket[0]);
-                                                                excluded_sum.push_back(-1001);
-
-                                                                for(int n=1;n<N;++n)
-                                                                {
-                                                                                                int64_t includedSum,excludedSum;
-
-                                                                                                if(ticket[n]!=0)
-                                                                                                {
-                                                                                                                                includedSum=maxSum(ticket[n], ticket[n]+excluded_sum[n-1]);
-                                                                                                                                included_sum.push_back(includedSum);
-                                                                                                                                if(includedSum==ticket[n])
-                                                                                                                                {
-                                                                                                                                               vector<int> temp;
-                                                                                                                                               temp.push_back(ticket[n]);
-                                                                                                                                               included_map[n]=temp;
-                                                                                                                                }
-                                                                                                                                else
-                                                                                                                                {
-                                                                                                                                               vector<int> temp;
-                                                                                                                                               temp=excluded_map[n-1];
-                                                                                                                                               temp.push_back(ticket[n]);
-                                                                                                                                               included_map[n]=temp;
-                                                                                                                                }
-
-                                                                                                                                excludedSum=maxSum(excluded_sum[n-1],included_sum[n-1]);
-                                                                                                                                excluded_sum.push_back(excludedSum);
-
-                                                                                                                                if(excludedSum==excluded_sum[n-1])
-                                                                                                                                               excluded_map[n]=excluded_map[n-1];
-
-                                                                                                                                else
-                                                                                                                                               excluded_map[n]=included_map[n-1];
-
-                                                                                                }
-
-                                                                                                else
-                                                                                                {
-                                                                                                                                excludedSum=maxSum(excluded_sum[n-1],included_sum[n-1]);
-                                                                                                                                excluded_sum.push_back(excludedSum);
-
-                                                                                                                                if(excludedSum==excluded_sum[n-1])
-                                                                                                                                               excluded_map[n]=excluded_map[n-1];
-
-                                                                                                                                else
-                                                                                                                                               excluded_map[n]=included_map[n-1];
-
-                                                                                                                                included_sum.push_back(included_sum[n-1]);
-                                                                                                                                included_map[n]=included_map[n-1];
-                                                                                                }
-                                                                }
-                                                                //case 1 included_sum[N-1] > excluded_sum[N-1]
-                                                                if(included_sum[N-1] > excluded_sum[N-1])
-                                                                {
-                                                                                                string temp;
-                                                                                                for(auto&x:included_sum)
-                                                                                                                                temp=to_string(x)+temp;
-
-                                                                                                result.push_back(temp);
-                                                                }
-
-                                                                //case 2 included_sum[N-1] < excluded_sum[N-1]
-                                                                else if(included_sum[N-1] < excluded_sum[N-1])
-                                                                {
-                                                                                                string temp;
-                                                                                                for(auto&x:excluded_sum)
-                                                                                                                                temp=to_string(x)+temp;
-
-                                                                                                result.push_back(temp);
-
-                                                                }
-
-                                                                //case 3 included_sum[N-1] == excluded_sum[N-1]
-                                                                else
-                                                                {
-                                                                                                int i,j;
-
-                                                                                                vector<int>&
-                                                                                                for(i=included_map[N-1].size()-1, j= excluded_map[N-1].size()-1;i>=0;--i)
-                                                                                                {
-                                                                                                                                //case 1 included_sum[i]>excluded_sum[j]
-                                                                                                                                if(included_sum[i]>excluded_sum[j])
-                                                                                                                                {
-
-                                                                                                                                               break;
-                                                                                                                                }
-                                                                                                                                //case 2 included_sum[i]<excluded_sum[j]
-                                                                                                                                else if(included_sum[i]<excluded_sum[j])
-                                                                                                                                {
-
-                                                                                                                                               break;
-                                                                                                                                }
-                                                                                                                                //case 3 included_sum[i]==excluded_sum[j]
-                                                                                                                                else
-                                                                                                                                {
-
-                                                                                                                                               break;
-                                                                                                                                }
-
-
-                                                                                                                                --j;
-                                                                                                }
-
-                                                                }
+                                        vector<int> temp;
+                                        temp.push_back(ticket[n]);
+                                        included_map[n]=temp;
                                 }
-                                for(auto&x: result)
-                                                                cout<<x<<endl;
+                                else
+                                {
+                                        vector<int> temp;
+                                        temp=excluded_map[n-1];
+                                        temp.push_back(ticket[n]);
+                                        included_map[n]=temp;
+                                }
 
-                                return 0;
+                                excludedSum=maxSum(excluded_sum[n-1],included_sum[n-1]);
+                                excluded_sum.push_back(excludedSum);
+
+                                if(excludedSum==excluded_sum[n-1])
+                                        excluded_map[n]=excluded_map[n-1];
+
+                                else
+                                        excluded_map[n]=included_map[n-1];
+
+                        }
+
+                        else
+                        {
+                                excludedSum=maxSum(excluded_sum[n-1],included_sum[n-1]);
+                                excluded_sum.push_back(excludedSum);
+
+                                if(excludedSum==excluded_sum[n-1])
+                                        excluded_map[n]=excluded_map[n-1];
+
+                                else
+                                        excluded_map[n]=included_map[n-1];
+
+                                included_sum.push_back(included_sum[n-1]);
+                                included_map[n]=included_map[n-1];
+                        }
+
+                        cout<<endl<<"n = "<<n<<endl;
+                        cout<<endl<<"printing included map"<<endl;
+                        for(auto&x : included_map[n])
+                                cout<<x;
+                        cout<<endl<<"printing excluded map"<<endl;
+                        for(auto&x : excluded_map[n])
+                                cout<<x;
+                }
+                //case 1 included_sum[N-1] > excluded_sum[N-1]
+                if(included_sum[N-1] > excluded_sum[N-1])
+                {
+                        printf("\n[%s::%d] case 1 included_sum[N-1] > excluded_sum[N-1]\n",__FILE__,__LINE__);
+                        string temp;
+                        for(auto&x:included_sum)
+                                temp=to_string(x)+temp;
+
+                        result.push_back(temp);
+                }
+
+                //case 2 included_sum[N-1] < excluded_sum[N-1]
+                else if(included_sum[N-1] < excluded_sum[N-1])
+                {
+                        printf("\n[%s::%d] case 2 included_sum[N-1] < excluded_sum[N-1]\n",__FILE__,__LINE__);
+                        string temp;
+                        for(auto&x:excluded_sum)
+                                temp=to_string(x)+temp;
+
+                        result.push_back(temp);
+
+                }
+
+                //case 3 included_sum[N-1] == excluded_sum[N-1]
+                else
+                {
+                        printf("\n[%s::%d] case 3 included_sum[N-1] == excluded_sum[N-1]\n",__FILE__,__LINE__);
+                        int i,j;
+
+                        vector<int>& inc=included_map[N-1];
+                        vector<int>& exc=excluded_map[N-1];
+                        for(i=inc.size()-1, j= exc.size()-1;i>=0;--i)
+                        {
+                                //case 1
+                                if(inc[i]>exc[j])
+                                {
+                                        printf("\n[%s::%d] case 1\n",__FILE__,__LINE__);
+                                        string temp;
+                                        for(auto&x:inc)
+                                                temp=to_string(x)+temp;
+
+                                        result.push_back(temp);
+
+                                        break;
+                                }
+                                //case 2
+                                else if(inc[i]<exc[j])
+                                {
+                                        printf("\n[%s::%d] case 2\n",__FILE__,__LINE__);
+                                        string temp;
+                                        for(auto&x:exc)
+                                                temp=to_string(x)+temp;
+
+                                        result.push_back(temp);
+
+                                        break;
+                                }
+                                //case 3
+                                else
+                                {
+                                        printf("\n[%s::%d] case 3\n",__FILE__,__LINE__);
+                                        --j;
+                                        continue;
+                                }
+
+
+                        }
+                }
+        }
+        for(auto&x: result)
+                cout<<x<<endl;
+
+        return 0;
 }
-
-
 
 
 
