@@ -1,3 +1,87 @@
+code forces 1
+
+#include<iostream>
+#include<vector>
+#include<unistd.h>
+#include<string>
+#include<sstream>
+#include<iterator>
+#include<assert.h>
+using namespace std;
+
+int main()
+{
+        int T;
+        cin>>T;
+        vector<int>result;
+        for(int i=0;i<T;++i)
+        {
+                vector<int> arr;
+                int n;
+                cin>>n;
+                int prev=-1,curr;
+                bool sorted=true;
+                for(int j=0;j<n;++j)
+                {
+                        cin>>curr;
+                        if(curr<prev)
+                                sorted=false;
+                        prev=curr;
+                        arr.push_back(curr);
+                }
+                if(sorted)
+                {
+                        result.push_back(n);
+                        continue;
+                }
+
+                int l_result=0;
+                while(!sorted)
+                {
+                        if(n==1)
+                        {
+                                l_result = 1;
+                                break;
+                        }
+                        n=n/2;
+                        assert(n!=0);
+                        int n_loops=arr.size()/n;
+
+                        for(int j=0;j<n_loops;++j)
+                        {
+                                int start_index=j*2;
+                                int stop_index=(j+1)*2;
+                                prev=-1;
+                                for(int k=start_index;k<stop_index;++k)
+                                {
+                                        if(arr[k]<prev)
+                                        {
+                                                sorted = false;
+                                                break;
+                                        }
+                                        else
+                                                sorted = true;
+                                        prev=arr[k];
+                                }
+                                if(sorted)
+                                        l_result = n;
+
+                        }
+                }
+                result.push_back(l_result);
+
+        }
+
+        for(auto&x:result)
+                cout<<endl<<x<<endl;
+
+        return 0;
+}
+
+
+
+
+
 techgig 2
 #include<iostream>
 #include<vector>
