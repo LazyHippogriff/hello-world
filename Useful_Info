@@ -1,4 +1,5 @@
-techgig python attempt of question 2
+# Hello World program in Python
+    
 print ("Hello World!")
 
 nTestCases = input()
@@ -6,11 +7,31 @@ nTestCases = input()
 print("no of Test Cases: ",nTestCases)
 
 for x in range(int(nTestCases)):
-    nHouses = input()
-    ticket = list(map(int, input().split()))
-
-    for x in range(len(ticket)): 
-        print (ticket[x])
+#    nHouses = input()
+#    ticket = list(map(int, input().split()))
+    ticket = input()
+    ticket = ticket.split()
+    ind = 0
+    flag = 0
+    tSize = len(ticket)
+    for x in range(tSize):
+        if flag == 0:
+            #print("flag == 0")
+            if int(ticket[ind]) == 0:
+                #print("int(ticket[ind] == 0")
+                del ticket[ind]
+            else:
+                #print("int(ticket[ind]) != 0")
+                flag = 1
+                ind = ind + 1
+        else:
+            #print("flag != 0")
+            ind = ind + 1
+        
+    print("Ticket size: ",len(ticket))
+    for x in ticket:
+        print(x)
+    
 
 
 
