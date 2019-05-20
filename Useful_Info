@@ -29,12 +29,16 @@ for x in range(int(nTestCases)):
         resList.append(0)
     else:
         tSize = len(ticket)
-        included_map = {}
-        excluded_map = {}
-        included_map[0] = int(ticket[0])
+        included_map = dict()
+        excluded_map = dict()
+        l_list1 = [ticket[0]]
+        l_list2 = list()
+        included_map[0] = l_list1
+        excluded_map[0] = l_list2
         g_includedSum = int(ticket[0])
         g_excludedSum = -1001
         for x in range(tSize):
+            x = int(x)
             includedSum=g_includedSum 
             excludedSum=g_excludedSum
             if ticket[x] != 0:
@@ -47,9 +51,9 @@ for x in range(int(nTestCases)):
                 g_excludedSum = max(-1002,excludedSum,includedSum)
                 
                 if g_excludedSum == excludedSum:
-                    excluded_map[x]=excluded_map[x-1]
-                else:
-                    excluded_map[x]=included_map[x-1]
+                    excluded_map[x] = excluded_map[x-1]
+                #else:
+                 #   excluded_map[x] = included_map[x-1]
             else:
                 g_excludedSum=maxSum(excludedSum,includedSum)
                 if g_excludedSum == excludedSum:
@@ -57,15 +61,14 @@ for x in range(int(nTestCases)):
                 else:
                     excluded_map[x]=included_map[x-1]
                     included_map[x]=included_map[x-1]
-        
-        
+                
         if(g_includedSum > g_excludedSum):
             ref = included_map[tSize-1];
             ref.reverse()
             l_res = " ".join(str(resStr) for resStr in ref)
             resList.append(l_res)
         
-        else if g_includedSum < g_excludedSum: 
+        elif g_includedSum < g_excludedSum: 
             ref = excluded_map[tSize-1]
             ref.reverse()
             l_res = " ".join(str(resStr) for resStr in ref)
@@ -87,9 +90,7 @@ for x in range(int(nTestCases)):
     
 
 for x in resList:
-    print(x)
-            
-       
+    print(x)       
             
 
     
