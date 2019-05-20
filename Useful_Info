@@ -7,6 +7,7 @@ resList = []
 print("no of Test Cases: ",nTestCases)
 
 for x in range(int(nTestCases)):
+    nHouses = input()
     ticket = input()
     ticket = ticket.split()
     ind = 0
@@ -23,6 +24,7 @@ for x in range(int(nTestCases)):
         else:
             ticket[ind] = int(ticket[ind])
             ind = ind + 1
+            
     if len(ticket) == 0:
         resList.append(0)
     else:
@@ -70,7 +72,24 @@ for x in range(int(nTestCases)):
             resList.append(l_res)
             
         else:
+            resCode = cmp(included_map[tSize-1], excluded_map[tSize-1])
+            if resCode == 1:
+                ref = included_map[tSize-1];
+                ref.reverse()
+                l_res = " ".join(str(resStr) for resStr in ref)
+                resList.append(l_res)
             
+            else:
+                ref = excluded_map[tSize-1];
+                ref.reverse()
+                l_res = " ".join(str(resStr) for resStr in ref)
+                resList.append(l_res)
+    
+
+for x in resList:
+    print(x)
+            
+       
             
 
     
