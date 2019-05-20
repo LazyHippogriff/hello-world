@@ -3,6 +3,7 @@
 print ("Hello World!")
 
 nTestCases = input()
+resList = []
 
 print("no of Test Cases: ",nTestCases)
 
@@ -27,13 +28,24 @@ for x in range(int(nTestCases)):
         else:
             #print("flag != 0")
             ind = ind + 1
-        
-    print("Ticket size: ",len(ticket))
+    if len(ticket) == 0:
+        resList.append(0)
+    else:
+        included_map = {}
+        included_map[0] = int(ticket[0])
+        g_includedSum = int(ticket[0])
+        g_excludedSum = int(-1001);
+
+
+
+
+
+
+
+
     for x in ticket:
         print(x)
     
-
-
 
 
 code forces 1
